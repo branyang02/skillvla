@@ -1,0 +1,8 @@
+exclude = [
+    "submodules/octo",
+    "skillvla/robomimic"
+]
+
+[lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]

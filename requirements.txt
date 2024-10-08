@@ -1,1 +1,10 @@
+torch==2.0.1
+torchvision
 ruff==0.6.9
+openai==1.51.1
+imageio==2.35.1
+imageio-ffmpeg==0.5.1
+tensorflow==2.15.0
+tensorflow_datasets==4.9.2
+tensorflow_graphics==2021.12.3
+dlimp @ git+https://github.com/kvablack/dlimp@5edaa4691567873d495633f2708982b42edf1972
