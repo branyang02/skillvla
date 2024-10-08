@@ -1,0 +1,3 @@
+[submodule "submodules/octo"]
+	path = submodules/octo
+	url = https://github.com/octo-models/octo.git
