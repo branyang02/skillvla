@@ -9,19 +9,9 @@ import tqdm
 from openai import OpenAI
 from PIL import Image
 
+from skillvla.dataset.droid_dataloader import get_droid_dataset
+
 client = OpenAI()
-
-examples = """
-Move the mushroom to the pot;
-open the door;
-place the spoon on the towel;
-place the spoon on the burner
-"""
-
-bad_examples = """
-move the gripper down towards the mushroom
-open the gripper
-"""
 
 
 def encode_image(im):
@@ -181,20 +171,28 @@ def proc_im_color(im: np.ndarray):
 
 
 if __name__ == "__main__":
-    im_dim = "./droid_doritos_sink.png"
+    # TODO: Use https://github.com/octo-models/octo/blob/main/examples/06_pytorch_oxe_dataloader.py instead
+    val_dataset = get_droid_dataset(train=True)
+    sample = next(iter(val_dataset))
+    print(sample.keys())
+    print(sample["obs"].keys())
+    print(sample["actions"].shape)
+    print("---" * 50)
+    print(sample["obs"]["camera/image/varied_camera_1_left_image"].shape)
+    # im_dim = "./droid_doritos_sink.png"
 
-    # instr = "Put the marker in the pot"
-    instr = "Place the pack of doritos inside the sink"
-    # instr = "Put the marker inside the silver pot"
+    # # instr = "Put the marker in the pot"
+    # instr = "Place the pack of doritos inside the sink"
+    # # instr = "Put the marker inside the silver pot"
 
-    res = make_multiple_response(im_dim, instr, 10)
-    _, (decomp_high, decomp_low) = process_candidates(res)
-    for plan_id, (candidate_plan_low, candidate_plan_high) in enumerate(
-        tqdm.tqdm(list(zip(decomp_low, decomp_high)), desc="sample plans")
-    ):
-        print(f"Plan {plan_id}")
-        print("High level plan:")
-        print(candidate_plan_high)
-        print("Low level plan:")
-        print(candidate_plan_low)
-        print("\n")
+    # res = make_multiple_response(im_dim, instr, 10)
+    # _, (decomp_high, decomp_low) = process_candidates(res)
+    # for plan_id, (candidate_plan_low, candidate_plan_high) in enumerate(
+    #     tqdm.tqdm(list(zip(decomp_low, decomp_high)), desc="sample plans")
+    # ):
+    #     print(f"Plan {plan_id}")
+    #     print("High level plan:")
+    #     print(candidate_plan_high)
+    #     print("Low level plan:")
+    #     print(candidate_plan_low)
+    #     print("\n")
