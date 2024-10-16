@@ -27,13 +27,13 @@ import torch
 import torch.distributed as dist
 import yaml
 
-from prismatic.models import load, load_vla
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training import VLAMetrics, get_train_strategy
 from prismatic.util import set_global_seed
 from prismatic.vla import get_vla_dataset_and_collator
 from prismatic.vla.datasets.rlds.utils.data_utils import save_dataset_statistics
 from skillvla.conf.vla import VLAConfig, VLARegistry
+from skillvla.models.skillvla import SkillVLA
 
 # Sane Defaults
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -140,17 +140,17 @@ def train(cfg: TrainConfig) -> None:
     # Load VLA checkpoint (if resuming from training) or Base VLM otherwise (from `cfg.vla.base_vlm` ID or Path)
     #   =>> Note :: Verifies that all parameters are loaded in FP32 on load!
     overwatch.info(f"Loading Base VLM `{cfg.vla.base_vlm}` from ID/Path")
-    if cfg.pretrained_checkpoint is not None:
-        # [Validate] Pretrained Checkpoint `step` and `epoch` should match `resume_step` and `resume_epoch`
-        #   =>> Note :: We make developers pass in `resume_*` arguments as an extra sanity check!
-        if cfg.is_resume:
-            assert int(re.search("step-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_step
-            assert int(re.search("epoch-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_epoch
 
-        vlm = load_vla(cfg.pretrained_checkpoint, hf_token=hf_token, load_for_training=True)
+    vlm = SkillVLA.load(cfg.vla.base_vlm, hf_token=hf_token, load_for_training=True)
+    # TODO: load vlm from cfg.pretrained_checkpoint
+    # if cfg.pretrained_checkpoint is not None:
+    #     # [Validate] Pretrained Checkpoint `step` and `epoch` should match `resume_step` and `resume_epoch`
+    #     #   =>> Note :: We make developers pass in `resume_*` arguments as an extra sanity check!
+    #     if cfg.is_resume:
+    #         assert int(re.search("step-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_step
+    #         assert int(re.search("epoch-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_epoch
 
-    else:
-        vlm = load(cfg.vla.base_vlm, hf_token=hf_token, load_for_training=True)
+    #     vlm = load_vla(cfg.pretrained_checkpoint, hf_token=hf_token, load_for_training=True)
 
     # [Validate] Model should be in Full Precision!
     for param in vlm.parameters():
