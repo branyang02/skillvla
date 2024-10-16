@@ -1,5 +1,5 @@
 """
-train.py
+skillvla/train.py
 
 Training script for Vision-Language-Action (VLA) Policies, built on top of pretrained VLMs, trained using mixtures of
 the Open-X Embodiment dataset. Performs training in native PyTorch, using Fully-Sharded Data Parallel (FSDP) to run
@@ -20,20 +20,20 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import draccus
 import torch
 import torch.distributed as dist
 import yaml
 
-from prismatic.conf import VLAConfig, VLARegistry
 from prismatic.models import load, load_vla
 from prismatic.overwatch import initialize_overwatch
 from prismatic.training import VLAMetrics, get_train_strategy
 from prismatic.util import set_global_seed
 from prismatic.vla import get_vla_dataset_and_collator
 from prismatic.vla.datasets.rlds.utils.data_utils import save_dataset_statistics
+from skillvla.conf.vla import VLAConfig, VLARegistry
 
 # Sane Defaults
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
