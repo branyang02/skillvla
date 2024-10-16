@@ -57,49 +57,6 @@ class VLAConfig(ChoiceRegistry):
     # fmt: on
 
 
-# === OpenVLA SkillVLA Training Configurations ===
-@dataclass
-class BaseExp_DinoSigLIP_224px_SkillVLA(VLAConfig):
-    # Shared Configuration Parameters
-    vla_id: str = ""
-    base_vlm: Union[str, Path] = "prism-dinosiglip-224px+7b"
-
-    freeze_vision_backbone: bool = True  # TODO: Curr freeze vision backbone
-    freeze_llm_backbone: bool = True  # TODO: Curr freeze llm backbone
-    unfreeze_last_llm_layer: bool = True  # TODO: Curr unfreeze last llm layer
-
-    # Data Mixture Parameters
-    data_mix: str = ""
-    shuffle_buffer_size: int = 256_000
-
-    # Optimization Parameters
-    epochs: int = 1000
-    max_steps: Optional[int] = None
-
-    expected_world_size: int = 1  # TODO: Currently for single GPU Training
-    global_batch_size: int = 1  # TODO: Currently for single GPU Training
-    per_device_batch_size: int = 1  # TODO: Currently for single GPU Training
-
-    learning_rate: float = 2e-5
-    weight_decay: float = 0.0
-    max_grad_norm: float = 1.0
-    lr_scheduler_type: str = "constant"
-    warmup_ratio: float = 0.0
-
-    train_strategy: str = "fsdp-full-shard"
-
-# Subclass for "Droid" configuration
-@dataclass
-class Exp_DinoSigLIP_224px_SkillVLA_Droid(BaseExp_DinoSigLIP_224px_SkillVLA):
-    vla_id: str = "prism-dinosiglip-224px+mx-skillvla-droid"
-    data_mix: str = "droid"
-
-# Subclass for "Bridge" configuration
-@dataclass
-class Exp_DinoSigLIP_224px_SkillVLA_Bridge(BaseExp_DinoSigLIP_224px_SkillVLA):
-    vla_id: str = "prism-dinosiglip-224px+mx-skillvla-bridge"
-    data_mix: str = "bridge"
-
 # === OpenVLA Training Configurations ===
 
 
@@ -244,10 +201,6 @@ class Exp_SigLIP_224px_Droid_Wipe(Exp_SigLIP_224px_Bridge):
 # === Define a VLA Registry Enum for Reference & Validation ===
 @unique
 class VLARegistry(Enum):
-    # SkillVLA Droid
-    DINO_SIGLIP_224PX_SKILLVLA_DROID = Exp_DinoSigLIP_224px_SkillVLA_Droid
-    DINO_SIGLIP_224PX_SKILLVLA_BRIDGE = Exp_DinoSigLIP_224px_SkillVLA_Bridge
-
     # Sanity Check Configurations =>> BridgeV2
     SIGLIP_224PX_MX_BRIDGE = Exp_SigLIP_224px_Bridge
     DINOSIGLIP_224PX_MX_BRIDGE = Exp_DinoSigLIP_224px_Bridge
