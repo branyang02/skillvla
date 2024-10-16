@@ -26,8 +26,8 @@ from prismatic.models.materialize import get_llm_backbone_and_tokenizer, get_vis
 from prismatic.models.registry import GLOBAL_REGISTRY, MODEL_REGISTRY
 from prismatic.overwatch import initialize_overwatch
 from prismatic.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector
+from skillvla.components import DiffusionPolicy, SkillPredictor
 from skillvla.components.action_head import ActionHead
-from skillvla.components.diffusion_policy.diffusion_policy import DiffusionPolicy
 from skillvla.models.base_vla import VLA
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -50,6 +50,7 @@ class SkillVLA(VLA):
         vision_backbone: VisionBackbone,
         llm_backbone: LLMBackbone,
         action_head: ActionHead,
+        skill_predictor: SkillPredictor,
         enable_mixed_precision_training: bool = True,
         arch_specifier: str = "gelu-mlp",
         **kwargs,
@@ -62,6 +63,9 @@ class SkillVLA(VLA):
             action_head,
             enable_mixed_precision_training=enable_mixed_precision_training,
         )
+
+        # Set Skill Predictor
+        self.skill_predictor = skill_predictor  # 7541.915, 465.729
 
         # Set Weight Initialization Seed for Projector Consistency
         torch.manual_seed(vision_backbone.embed_dim)
@@ -153,6 +157,9 @@ class SkillVLA(VLA):
         # Load Action Decoder  TODO: Implement Action Decoder Loading
         action_head = DiffusionPolicy()  # HACK: For now, just instantiate a dummy ActionHead
 
+        # Load Skill Predictor  TODO: Implement Skill Predictor Loading
+        skill_predictor = SkillPredictor()  # HACK: For now, just instantiate a dummy SkillPredictor
+
         # Instantiate SkillVLA, same as `PrismaticVLM.from_pretrained()` method.
         overwatch.info(f"Loading VLM [bold blue]{model_cfg['model_id']}[/] from Checkpoint")
         vla = SkillVLA.from_pretrained(
@@ -161,6 +168,7 @@ class SkillVLA(VLA):
             vision_backbone,
             llm_backbone,
             action_head,
+            skill_predictor,
             arch_specifier=model_cfg["arch_specifier"],
             freeze_weights=not load_for_training,
         )
@@ -175,6 +183,7 @@ class SkillVLA(VLA):
         vision_backbone: VisionBackbone,
         llm_backbone: LLMBackbone,
         action_head: ActionHead,
+        skill_predictor: SkillPredictor,
         enable_mixed_precision_training: bool = True,
         arch_specifier: str = "gelu-mlp",
         freeze_weights: bool = True,
@@ -186,6 +195,7 @@ class SkillVLA(VLA):
             vision_backbone,
             llm_backbone,
             action_head,
+            skill_predictor,
             enable_mixed_precision_training=enable_mixed_precision_training,
             arch_specifier=arch_specifier,
             **kwargs,
