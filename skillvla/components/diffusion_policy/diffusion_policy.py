@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 
-from skillvla.components.action_decoder import ActionDecoder
+from skillvla.components.action_head import ActionHead
 
 
 # HACK: This is a dummy implementation of a diffusion policy.
-class DiffusionPolicy(ActionDecoder):
+class DiffusionPolicy(ActionHead):
     def __init__(self):
-        super(DiffusionPolicy, self).__init__(action_decoder_id="dummy_diffusion_policy")
+        super(DiffusionPolicy, self).__init__(action_head_id="dummy_diffusion_policy")
 
         self.mlp = nn.Sequential(
             nn.Linear(1000, 512),

@@ -10,7 +10,7 @@ from pathlib import Path
 from prismatic.models.backbones.llm import LLMBackbone
 from prismatic.models.backbones.vision import VisionBackbone
 from prismatic.models.vlms.base_vlm import VLM
-from skillvla.components.action_decoder import ActionDecoder
+from skillvla.components.action_head import ActionHead
 
 
 class VLA(VLM, ABC):
@@ -22,7 +22,7 @@ class VLA(VLM, ABC):
         model_id: str,
         vision_backbone: VisionBackbone,
         llm_backbone: LLMBackbone,
-        action_decoder: ActionDecoder,
+        action_head: ActionHead,
         enable_mixed_precision_training: bool = True,
     ) -> None:
         # Initialize parent VLM class
@@ -34,7 +34,7 @@ class VLA(VLM, ABC):
             enable_mixed_precision_training=enable_mixed_precision_training,
         )
 
-        self.action_decoder = action_decoder
+        self.action_head = action_head
 
     @classmethod
     @abstractmethod
@@ -45,6 +45,6 @@ class VLA(VLM, ABC):
         model_id: str,
         vision_backbone: VisionBackbone,
         llm_backbone: LLMBackbone,
-        action_decoder: ActionDecoder,
+        action_head: ActionHead,
         **kwargs: str,
     ) -> VLM: ...
