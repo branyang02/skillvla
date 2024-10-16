@@ -1,5 +1,5 @@
 """
-skillvla/conf/vla.py
+skillvla/conf/vla_conf.py
 
 Based on `prismatic/conf/vla.py` with modifications for SkillVLA.
 """

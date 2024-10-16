@@ -32,7 +32,7 @@ from prismatic.training import VLAMetrics, get_train_strategy
 from prismatic.util import set_global_seed
 from prismatic.vla import get_vla_dataset_and_collator
 from prismatic.vla.datasets.rlds.utils.data_utils import save_dataset_statistics
-from skillvla.conf.vla import VLAConfig, VLARegistry
+from skillvla.conf.vla_conf import VLAConfig, VLARegistry
 from skillvla.models.skillvla import SkillVLA
 
 # Sane Defaults
