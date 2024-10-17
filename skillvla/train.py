@@ -49,7 +49,7 @@ class TrainConfig:
 
     # VLAConfig (`prismatic/conf/vla.py`); override with --vla.type `VLARegistry.<VLA>.vla_id`
     vla: VLAConfig = field(
-        default_factory=VLAConfig.get_choice_class(VLARegistry.DINO_SIGLIP_224PX_SKILLVLA_DROID.vla_id)
+        default_factory=VLAConfig.get_choice_class(VLARegistry.DINO_SIGLIP_224PX_SKILLVLA_BRIDGE.vla_id)
     )
 
     # Directory Paths
@@ -251,8 +251,7 @@ def train(cfg: TrainConfig) -> None:
 
     # TODO: Works with frozen vision, llm, train llm final layer
     """
-    >>> (openvla) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 vla-scripts/train.py
-    >>> (openvla) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 vla-scripts/train.py --vla.type prism-dinosiglip-224px+mx-skillvla-bridge --data_root_dir /scratch/jqm9ba/datasets/ 
+    (skillvla-env) bash-4.4$torchrun --standalone --nodes 1 --nproc-per-node 1 skillvla/train.py 
     """
 
     # Finalize
