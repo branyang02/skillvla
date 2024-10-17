@@ -7,15 +7,15 @@ Base class for VLA model, wrapper around `prismatic.models.vlms.base_vlm.VLM`.
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from prismatic.models.vlms.base_vlm import VLM
 from skillvla.components.action_head.base_action_head import ActionHead
 from skillvla.components.llm.base_llm import LLMBackbone
 from skillvla.components.vision.base_vision import VisionBackbone
+from skillvla.models.base_vlm import VLM
 
 
 class VLA(VLM, ABC):
     """
-    Base class for VLA model, wrapper around `prismatic.models.vlms.base_vlm.VLM`.
+    Base class for VLA model, wrapper around VLM class.
     Add `action_head` to the VLM model.
     """
 

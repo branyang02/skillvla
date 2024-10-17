@@ -1,18 +1,13 @@
 """
 skillvla/train.py
 
-Training script for Vision-Language-Action (VLA) Policies, built on top of pretrained VLMs, trained using mixtures of
-the Open-X Embodiment dataset. Performs training in native PyTorch, using Fully-Sharded Data Parallel (FSDP) to run
-distributed across GPUs (and nodes). By default, assumes that CUDA toolkit is >= 11.0 (to support BF16 mixed precision).
+We support 2 methods of training:
 
-Notes & Prerequisites:
-    - If you want to set a custom location for all HF / TIMM artifacts --> `export HF_HOME="<PATH>"` *before* running!
-        => For example (add to end of .bashrc): `export HF_HOME="/mnt/fsx/skaramcheti/cache"`
-    - If you want to suppress random Tensorflow logs --> `export TF_CPP_MIN_LOG_LEVEL=3`
+1. Train from pretrained Prismatic VLM
+>>> (skillvla-env) bash-4.4$ torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py
 
-Run with:
-    - [Single Node One-GPU (Debug)] : torchrun --standalone --nnodes 1 --nproc-per-node 1 vla-scripts/train.py
-    - [Single Node Multi-GPU (= $K)]: torchrun --standalone --nnodes 1 --nproc-per-node $K vla-scripts/train.py
+2. Train from pretrained OpenVLA VLA (trained on top of Prismatic VLM)
+>>> (skillvla-env) bash-4.4$ torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py --pretrained_checkpoint base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss\=0.2200.pt --no_is_resume
 """
 
 import os
@@ -25,6 +20,7 @@ import torch
 import tyro
 
 from skillvla.conf.vla_conf import VLAConfig
+from skillvla.datasets.materialize import get_vla_dataset_and_collator
 from skillvla.models.skillvla import SkillVLA
 from skillvla.util import initialize_overwatch
 from skillvla.util.torch_utils import set_global_seed
@@ -107,20 +103,20 @@ class TrainConfig:
         # Save configuration
         if overwatch.is_rank_zero():
             yaml_cfg_data = tyro.extras.to_yaml(self)
+            overwatch.info("[bold purple]###### Configuration ######")
             overwatch.info(yaml_cfg_data)
             with open(os.path.join(run_dir, "config.yaml"), "w") as yaml_file:
                 yaml_file.write(yaml_cfg_data)
 
 
 def train(cfg: TrainConfig) -> None:
-    overwatch.info("OpenVLA Training :: Warming Up")
+    overwatch.info("[bold purple]###### OpenVLA Training :: Warming Up ######")
 
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
     torch.cuda.set_device(device_id := overwatch.local_rank())
     torch.cuda.empty_cache()
 
     # Start =>> Build Directories and Set Randomness
-    overwatch.info('"Do or do not; there is no try."', ctx_level=1)
     hf_token = Path(cfg.hf_token).read_text().strip()
     worker_init_fn = set_global_seed(cfg.seed, get_worker_init_fn=True)
 
@@ -142,26 +138,9 @@ def train(cfg: TrainConfig) -> None:
     for param in vla.parameters():
         assert param.dtype == torch.float32, f"Loaded VLA parameter not in full precision: {param}"
 
-    # Determine training "stage" based on frozen vs unfrozen parameters --> supports different fine-tuning schemes!
-    if not cfg.vla.freeze_vision_backbone and not cfg.vla.freeze_llm_backbone:
-        stage = "vla-full-train"  # Full fine-tuning
-    elif cfg.vla.freeze_vision_backbone and not cfg.vla.freeze_llm_backbone:
-        stage = "vla-train"  # Frozen vision encoder
-    elif not cfg.vla.freeze_vision_backbone and cfg.vla.freeze_llm_backbone:
-        assert cfg.vla.unfreeze_last_llm_layer, "You should unfreeze at least the last layer of your LLM!"
-        stage = "vla-sandwich-train"  # Fine-tuning vision encoder, projector, and LLM last layer
-    elif cfg.vla.freeze_vision_backbone and cfg.vla.freeze_llm_backbone:
-        assert cfg.vla.unfreeze_last_llm_layer, "Need to unfreeze at least last LLM layer to train!"
-        stage = "vla-last-layer-train"  # Fine-tuning LLM last layer only
-    else:
-        raise ValueError(
-            "Weight freezing configuration not supported. VLA config has the following parameters: "
-            f"freeze_vision_backbone: {cfg.vla.freeze_vision_backbone}"
-            f"freeze_llm_backbone: {cfg.vla.freeze_llm_backbone}"
-            f"unfreeze_last_llm_layer: {cfg.vla.unfreeze_last_llm_layer}"
-        )
-
     # [Explicit] Call to `freeze_backbones` here for clarity =>> will log exactly what is/is not frozen
+    overwatch.info("[bold purple]###### Configuring Training Parameters ######")
+    stage = "skill-learning"  # TODO: Allow more stages for freezing
     overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{cfg.vla.vla_id}` => Stage: `{stage}`")
     vla.freeze_backbones(stage)
 
@@ -171,12 +150,26 @@ def train(cfg: TrainConfig) -> None:
     overwatch.info(
         f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable"
     )
+    for module_key in vla.all_module_keys:
+        num_module_params = sum(p.numel() for p in vla.get_module(module_key).parameters())
+        num_trainable_module_params = sum(p.numel() for p in vla.get_module(module_key).parameters() if p.requires_grad)
+        overwatch.info(
+            f"# Params in `{module_key}` (in millions): {num_module_params / 10**6:.3f} Total, {num_trainable_module_params / 10**6:.3f} Trainable"
+        )
 
-    # TODO: Works with both below:
-    # >>> (skillvla-env) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py
-    # >>> (skillvla-env) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py --pretrained_checkpoint base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss\=0.2200.pt --no_is_resume
-
-    # TODO: Reference train_old and finish this script
+    # TODO: Implement optimizer and scheduler
+    # Get VLA Dataset & Collator
+    vla_dataset, collator = get_vla_dataset_and_collator(
+        cfg.data_root_dir,
+        cfg.vla.data_mix,
+        image_transform=vla.vision_backbone.get_image_transform(),
+        tokenizer=vla.llm_backbone.get_tokenizer(),
+        action_head=vla.action_head,
+        prompt_builder_fn=vla.llm_backbone.prompt_builder_fn,
+        default_image_resolution=vla.vision_backbone.default_image_resolution,
+        shuffle_buffer_size=cfg.vla.shuffle_buffer_size,
+        image_aug=cfg.image_aug,
+    )
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 """
 eval.py
 
-This file contains the evaluation functions for the model.
-TODO: This script is currently just the first part of the train script. Need to modify.
+# TODO: Currently this only support evaluation of pretrained OpenVLA
+>>> (skillvla-env) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/eval.py --pretrained_checkpoint base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss\=0.2200.pt
 """
 
 import os
@@ -13,6 +13,7 @@ from typing import List, Optional
 
 import torch
 import tyro
+from PIL import Image
 
 from skillvla.conf.vla_conf import VLAConfig
 from skillvla.models.skillvla import SkillVLA
@@ -94,35 +95,44 @@ class EvalConfig:
         # Save configuration
         if overwatch.is_rank_zero():
             yaml_cfg_data = tyro.extras.to_yaml(self)
+            overwatch.info("[bold purple]###### Configuration ######")
             overwatch.info(yaml_cfg_data)
             with open(os.path.join(run_dir, "config.yaml"), "w") as yaml_file:
                 yaml_file.write(yaml_cfg_data)
 
 
 def eval(cfg: EvalConfig) -> None:  # noqa: A001
-    overwatch.info("OpenVLA Evaluating :: Warming Up")
+    overwatch.info("[bold purple]###### OpenVLA Training :: Warming Up ######")
 
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
     torch.cuda.set_device(device_id := overwatch.local_rank())
     torch.cuda.empty_cache()
 
     # Start =>> Build Directories and Set Randomness
-    overwatch.info('"Do or do not; there is no try."', ctx_level=1)
     hf_token = Path(cfg.hf_token).read_text().strip()
     worker_init_fn = set_global_seed(cfg.seed, get_worker_init_fn=True)
 
-    # Load VLA checkpoint (if resuming from training) or Base VLM otherwise (from `cfg.vla.base_vlm` ID or Path)
-    #   =>> Note :: Verifies that all parameters are loaded in FP32 on load!
-    overwatch.info(f"Loading Base VLM `{cfg.vla.base_vlm}` from ID/Path")
-
     vla = SkillVLA.load(
-        cfg.vla.base_vlm, hf_token=hf_token, load_for_training=True, pretrained_checkpoint=cfg.pretrained_checkpoint
+        cfg.vla.base_vlm, hf_token=hf_token, load_for_training=False, pretrained_checkpoint=cfg.pretrained_checkpoint
     )
 
-    print(vla)
+    # Print number of total model parameters
+    overwatch.info("[bold purple]###### Model Parameters ######")
+    num_params = sum(p.numel() for p in vla.parameters())
+    overwatch.info(f"# Parameters (in millions): {num_params / 10**6:.3f} Total")
+    # Print parameters of different modules in the model
+    for module_key in vla.all_module_keys:
+        num_module_params = sum(p.numel() for p in vla.get_module(module_key).parameters())
+        overwatch.info(f"# Params in `{module_key}` (in millions): {num_module_params / 10**6:.3f}")
 
-    # TODO: Works with both below:
-    # >>> (skillvla-env) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/eval.py --pretrained_checkpoint base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss\=0.2200.pt
+    # TODO: Verify that this works by using simulation
+    action = vla.predict_action(
+        image=Image.open("files/bridge_test.jpg"),
+        instruction="move the red fork to the bottom left side of the table",
+        unnorm_key="bridge_orig",
+    )
+
+    print(action.shape)  # (7,)
 
 
 if __name__ == "__main__":

@@ -12,10 +12,12 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Type, Union
 
+import numpy as np
 import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
 from torch.distributed.fsdp.wrap import _module_wrap_policy, _or_policy
+from transformers import LlamaTokenizerFast
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from prismatic.conf.models import ModelConfig
@@ -114,8 +116,7 @@ class SkillVLA(VLA):
         """
 
         if pretrained_checkpoint is not None:
-            # Load from Checkpoint (Custom --> should load both *projector* and *llm* weights)
-            overwatch.info(f"Loading from local checkpoint path `{(checkpoint_pt := Path(pretrained_checkpoint))}`")
+            checkpoint_pt = Path(pretrained_checkpoint)
             # [Validate] Checkpoint Path should look like `.../<RUN_ID>/checkpoints/<CHECKPOINT_PATH>.pt`
             assert (checkpoint_pt.suffix == ".pt") and (
                 checkpoint_pt.parent.name == "checkpoints"
@@ -139,22 +140,27 @@ class SkillVLA(VLA):
             # = Load Individual Components necessary for Instantiating a VLA (via base VLM components) =
             #   =>> Print Minimal Config
             overwatch.info(
-                f"Found Config =>> Loading & Freezing [bold blue]{model_cfg.model_id}[/] with:\n"
-                f"             Vision Backbone =>> [bold]{model_cfg.vision_backbone_id}[/]\n"
-                f"             LLM Backbone    =>> [bold]{model_cfg.llm_backbone_id}[/]\n"
-                f"             Arch Specifier  =>> [bold]{model_cfg.arch_specifier}[/]\n"
-                f"             Checkpoint Path =>> [underline]`{checkpoint_pt}`[/]"
+                f"[bold green]Found Config =>> Loading & Freezing [bold blue]{model_cfg.model_id}[/] with:\n"
+                f"             [bold green]Vision Backbone =>> [bold blue]{model_cfg.vision_backbone_id}[/]\n"
+                f"             [bold green]LLM Backbone    =>> [bold blue]{model_cfg.llm_backbone_id}[/]\n"
+                f"             [bold green]Arch Specifier  =>> [bold blue]{model_cfg.arch_specifier}[/]\n"
+                f"             [bold green]Checkpoint Path =>> [underline]{checkpoint_pt}[/]"
             )
 
-            # Load Vision Backbone
-            overwatch.info(f"Loading Vision Backbone [bold]{model_cfg.vision_backbone_id}[/]")
+            # Instantiate VLA Components
+            overwatch.info("[bold purple]###### Instantiating VLA Components ######")
+
+            # Instantiate Vision Backbone
+            overwatch.info(f"[bold yellow]1. Instantiating Vision Backbone [bold blue]{model_cfg.vision_backbone_id}[/]")
             vision_backbone, image_transform = get_vision_backbone_and_transform(
                 model_cfg.vision_backbone_id,
                 model_cfg.image_resize_strategy,
             )
 
-            # Load LLM Backbone --> note `inference_mode = True` by default when calling `load()`
-            overwatch.info(f"Loading Pretrained LLM [bold]{model_cfg.llm_backbone_id}[/] via HF Transformers")
+            # Instantiate LLM Backbone --> note `inference_mode = True` by default when calling `load()`
+            overwatch.info(
+                f"[bold yellow]2. Instantiating Pretrained LLM [bold blue]{model_cfg.llm_backbone_id}[/] [bold yellow]via HF Transformers"
+            )
             llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
                 model_cfg.llm_backbone_id,
                 llm_max_length=model_cfg.llm_max_length,
@@ -162,20 +168,23 @@ class SkillVLA(VLA):
                 inference_mode=not load_for_training,
             )
 
-            # Load Action Head
+            # Instantiate Action Head
+            overwatch.info(
+                "[bold yellow]3. Instantiating Action Head [bold blue]openvla[/]"
+            )  # TODO: Move action head param to config
             action_head = get_action_head(
                 action_head_id="openvla",
-                tokenizer=tokenizer,  # TODO: Move action head param to config
+                tokenizer=tokenizer,
                 norm_stats=norm_stats,
             )  # tokenizer is needed for OpenVLAActionHead
-            overwatch.info(f"Loaded action head: {type(action_head)}")
 
-            # Load Skill Selector
-            skill_selector = get_skill_selector(skill_selector_id="vq")  # TODO: Move skill selector param to config
-            overwatch.info(f"Loaded skill selector: {type(skill_selector)}")
+            # Instantiate Skill Selector
+            overwatch.info(
+                "[bold yellow]4. Instantiating Skill Selector [bold blue]vq[/]"
+            )  # TODO: Move skill selector param to config
+            skill_selector = get_skill_selector(skill_selector_id="vq")
 
             # Load VLM using `from_pretrained` (clobbers HF syntax... eventually should reconcile)
-            overwatch.info(f"Loading VLA [bold blue]{model_cfg.model_id}[/] from Checkpoint")
             vla = SkillVLA.from_pretrained(
                 checkpoint_pt,
                 model_cfg.model_id,
@@ -203,46 +212,50 @@ class SkillVLA(VLA):
         # = Load Individual Components necessary for Instantiating a VLM =
         #   =>> Print Minimal Config
         overwatch.info(
-            f"Found Config =>> Loading & Freezing [bold blue]{model_cfg['model_id']}[/] with:\n"
-            f"             Vision Backbone =>> [bold]{model_cfg['vision_backbone_id']}[/]\n"
-            f"             LLM Backbone    =>> [bold]{model_cfg['llm_backbone_id']}[/]\n"
-            f"             Arch Specifier  =>> [bold]{model_cfg['arch_specifier']}[/]\n"
-            f"             Checkpoint Path =>> [underline]`{checkpoint_pt}`[/]"
+            f"[bold green]Found Config =>> Loading & Freezing [bold blue]{model_cfg['model_id']}[/] with:\n"
+            f"             [bold green]Vision Backbone =>> [bold blue]{model_cfg['vision_backbone_id']}[/]\n"
+            f"             [bold green]LLM Backbone    =>> [bold blue]{model_cfg['llm_backbone_id']}[/]\n"
+            f"             [bold green]Arch Specifier  =>> [bold blue]{model_cfg['arch_specifier']}[/]\n"
+            f"             [bold green]Checkpoint Path =>> [underline]{checkpoint_pt}[/]"
         )
 
-        # Load Vision Backbone
-        overwatch.info(f"Loading Vision Backbone [bold]{model_cfg['vision_backbone_id']}[/]")
+        # Instantiate VLA Components
+        overwatch.info("[bold purple]###### Instantiating VLA Components ######")
+
+        # Instantiate Vision Backbone
+        overwatch.info(f"[bold yellow]1. Instantiating Vision Backbone [bold blue]{model_cfg.vision_backbone_id}[/]")
         vision_backbone, image_transform = get_vision_backbone_and_transform(
             model_cfg["vision_backbone_id"],
             model_cfg["image_resize_strategy"],
         )
-        overwatch.info(f"Loaded vision backbone: {type(vision_backbone)}")
-        overwatch.info(f"Loaded image transform: {type(image_transform)}")
 
-        # Load LLM Backbone --> note `inference_mode = True` by default when calling `load()`
-        overwatch.info(f"Loading Pretrained LLM [bold]{model_cfg['llm_backbone_id']}[/] via HF Transformers")
+        # Instantiate LLM Backbone --> note `inference_mode = True` by default when calling `load()`
+        overwatch.info(
+            f"[bold yellow]2. Instantiating Pretrained LLM [bold blue]{model_cfg.llm_backbone_id}[/] [bold yellow]via HF Transformers"
+        )
         llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
             model_cfg["llm_backbone_id"],
             llm_max_length=model_cfg.get("llm_max_length", 2048),
             hf_token=hf_token,
             inference_mode=not load_for_training,
         )
-        overwatch.info(f"Loaded LLM backbone: {type(llm_backbone)}")
-        overwatch.info(f"Loaded tokenizer: {type(tokenizer)}")
 
-        # Load Action Head
+        # Instantiate Action Head
+        overwatch.info(
+            "[bold yellow]3. Instantiating Action Head [bold blue]openvla[/]"
+        )  # TODO: Move action head param to config
         action_head = get_action_head(
             action_head_id="openvla",
-            tokenizer=tokenizer,  # TODO: Move action head param to config
+            tokenizer=tokenizer,
         )  # tokenizer is needed for OpenVLAActionHead
-        overwatch.info(f"Loaded action head: {type(action_head)}")
 
-        # Load Skill Selector
+        # Instantiate Skill Selector
+        overwatch.info(
+            "[bold yellow]4. Instantiating Skill Selector [bold blue]vq[/]"
+        )  # TODO: Move skill selector param to config
         skill_selector = get_skill_selector(skill_selector_id="vq")  # TODO: Move skill selector param to config
-        overwatch.info(f"Loaded skill selector: {type(skill_selector)}")
 
         # Instantiate SkillVLA, same as `PrismaticVLM.from_pretrained()` method.
-        overwatch.info(f"Loading VLM [bold blue]{model_cfg['model_id']}[/] from Checkpoint")
         vla = SkillVLA.from_pretrained(
             checkpoint_pt,
             model_cfg["model_id"],
@@ -271,6 +284,7 @@ class SkillVLA(VLA):
         **kwargs,
     ) -> SkillVLA:
         """Initialize a `SkillVLA` from a pretrained checkpoint, freezing all weights, tailored for inference."""
+        overwatch.info("[bold purple]###### Loading VLA from Pretrained Checkpoint ######")
         vla = cls(
             model_id,
             vision_backbone,
@@ -282,15 +296,17 @@ class SkillVLA(VLA):
             **kwargs,
         )
 
-        # Load from Checkpoint (Custom --> should load both *projector* and *llm* weights)
         # NOTE: We only have pretrained weights (Prismatic) for vision_backbone, llm_backbone, and projector,
         #      so we need to train the action_head (if applicable) and skill_selector from scratch.
         model_state_dict = torch.load(pretrained_checkpoint, map_location="cpu")["model"]
-        overwatch.info(f"Keys in Pretrained Checkpoint: {model_state_dict.keys()}")
+        overwatch.info(f"[bold yellow]Checkpoint:[/] [underline]{pretrained_checkpoint}")
+        overwatch.info(f"[bold yellow]Available Modules:[/] {model_state_dict.keys()}")
+
         assert (
             "projector" in model_state_dict and "llm_backbone" in model_state_dict
         ), "PrismaticVLM `from_pretrained` expects checkpoint with keys for `projector` AND `llm_backbone`!"
 
+        # Load Weights
         vla.projector.load_state_dict(model_state_dict["projector"])
         vla.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
         if "vision_backbone" in model_state_dict.keys():
@@ -303,116 +319,130 @@ class SkillVLA(VLA):
 
         return vla
 
+    @torch.inference_mode()
+    def predict_action(
+        self, image: Image, instruction: str, unnorm_key: Optional[str] = None, **kwargs: str
+    ) -> np.ndarray:
+        # FIXME
+        image_transform, tokenizer = self.vision_backbone.image_transform, self.llm_backbone.tokenizer
+
+        # Build VLA Prompt
+        prompt_builder = self.get_prompt_builder()
+        prompt_builder.add_turn(role="human", message=f"What action should the robot take to {instruction.lower()}?")
+        prompt_text = prompt_builder.get_prompt()
+
+        # Prepare Inputs
+        input_ids = tokenizer(prompt_text, truncation=True, return_tensors="pt").input_ids.to(self.device)
+        if isinstance(tokenizer, LlamaTokenizerFast):
+            # If the special empty token ('') does not already appear after the colon (':') token in the prompt
+            # (after "OUT:" or "ASSISTANT:"), insert it to match the inputs seen at training time
+            if not torch.all(input_ids[:, -1] == 29871):
+                input_ids = torch.cat(
+                    (input_ids, torch.unsqueeze(torch.Tensor([29871]).long(), dim=0).to(input_ids.device)), dim=1
+                )
+        else:
+            raise ValueError(f"Unsupported `tokenizer` type = {type(tokenizer)}")
+
+        # Preprocess Image
+        pixel_values = image_transform(image)
+        if isinstance(pixel_values, torch.Tensor):
+            pixel_values = pixel_values[None, ...].to(self.device)
+        elif isinstance(pixel_values, dict):
+            pixel_values = {k: v[None, ...].to(self.device) for k, v in pixel_values.items()}
+        else:
+            raise ValueError(f"Unsupported `pixel_values` type = {type(pixel_values)}")
+
+        # Invoke super().generate --> taps into `GenerationMixin` which (redirects) to `forward()`
+        autocast_dtype = self.llm_backbone.half_precision_dtype
+        with torch.autocast("cuda", dtype=autocast_dtype, enabled=self.enable_mixed_precision_training):
+            # fmt: off
+            generated_ids = super(SkillVLA, self).generate(
+                input_ids=input_ids,                            # Shape: [1, seq]
+                pixel_values=pixel_values,                      # Shape: [1, 3, res, res] or Dict[str, ...]
+                max_new_tokens=self.get_action_dim(unnorm_key),
+                **kwargs
+            )
+            # fmt: on
+
+        # Extract predicted action tokens and translate into (normalized) continuous actions
+        predicted_action_token_ids = generated_ids[0, -self.get_action_dim(unnorm_key) :]
+        normalized_actions = self.action_head.decode_token_ids_to_actions(predicted_action_token_ids.cpu().numpy())
+
+        # Un-normalize Actions
+        action_norm_stats = self.get_action_stats(unnorm_key)
+        mask = action_norm_stats.get("mask", np.ones_like(action_norm_stats["q01"], dtype=bool))
+        action_high, action_low = np.array(action_norm_stats["q99"]), np.array(action_norm_stats["q01"])
+        actions = np.where(
+            mask,
+            0.5 * (normalized_actions + 1) * (action_high - action_low) + action_low,
+            normalized_actions,
+        )
+
+        return actions
+
+    # FIXME this belonged to OpenVLA class from prismatic
+    @staticmethod
+    def _check_unnorm_key(norm_stats: Dict, unnorm_key: str) -> str:
+        """ONLY USED IN INFERENCE"""
+        if unnorm_key is None:
+            assert len(norm_stats) == 1, (
+                f"Your model was trained on more than one dataset, please pass a `unnorm_key` from the following "
+                f"options to choose the statistics used for un-normalizing actions: {norm_stats.keys()}"
+            )
+            unnorm_key = next(iter(norm_stats.keys()))
+
+        # Error Handling
+        assert (
+            unnorm_key in norm_stats
+        ), f"The `unnorm_key` you chose is not in the set of available statistics; choose from: {norm_stats.keys()}"
+
+        return unnorm_key
+
+    # FIXME this belonged to OpenVLA class from prismatic
+    def get_action_dim(self, unnorm_key: Optional[str] = None) -> int:
+        """ONLY USED IN INFERENCE"""
+        """Dimensionality of the policy's action space."""
+        unnorm_key = self._check_unnorm_key(self.action_head.norm_stats, unnorm_key)
+
+        return len(self.action_head.norm_stats[unnorm_key]["action"]["q01"])
+
+    # FIXME this belonged to OpenVLA class from prismatic
+    def get_action_stats(self, unnorm_key: Optional[str] = None) -> Dict:
+        """ONLY USED IN INFERENCE"""
+        """Dimensionality of the policy's action space."""
+        unnorm_key = self._check_unnorm_key(self.action_head.norm_stats, unnorm_key)
+
+        return self.action_head.norm_stats[unnorm_key]["action"]
+
     def get_prompt_builder(self, system_prompt: Optional[str] = None) -> PromptBuilder:
         prompt_initializer: Type[PromptBuilder] = self.llm_backbone.prompt_builder_fn
         return prompt_initializer(self.model_family, system_prompt=system_prompt)
 
     def freeze_backbones(self, stage: str) -> None:
         """
-        This function sets `requires_grad_` on each of the component modules explicitly, depending on stage.
-
-        We support two separate stages --> "align" and "finetune".
-            => "align" --> vision_backbone*, llm_backbone* are frozen; only the `projector` is trained.
-            => "finetune" --> vision_backbone* is frozen; both `projector` and `llm_backbone` are trained.
-
-        :param stage: Pretraining stage in < "align" | "finetune" | "full-finetune" | "vla-train" | "vla-full-train" >
+        # TODO: Implement this method to allow for more stages based on openvla training code
         """
-        if stage == "align":
+        if stage == "skill-learning":
             self.vision_backbone.requires_grad_(False)
-            self.llm_backbone.requires_grad_(False)
-            self.projector.requires_grad_(True)
+            self.llm_backbone.requires_grad_(True)
+            self.projector.requires_grad_(False)
+            self.action_head.requires_grad_(True)  # no parameters if action head is not trainable
+            self.skill_selector.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projector"]
+            self.trainable_module_keys = ["llm_backbone", "action_head", "skill_selector"]
 
             # Update Trackers
             self.vision_backbone_requires_grad = False
 
             # Explicitly Log Frozen / Trainable Components
             overwatch.info(f"[Frozen]    🥶 =>> Vision Backbone `{self.vision_backbone.identifier}`", ctx_level=1)
-            overwatch.info(f"[Frozen]    🥶 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> Projector `{self.arch_specifier}`", ctx_level=1)
-
-        elif stage in {"finetune", "vla-train"}:
-            self.vision_backbone.requires_grad_(False)
-            self.llm_backbone.requires_grad_(True)
-            self.projector.requires_grad_(True)
-
-            # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projector", "llm_backbone"]
-
-            # Update Trackers
-            self.vision_backbone_requires_grad = False
-
-            # Explicitly Log Frozen / Unfrozen Components
-            overwatch.info(f"[Frozen]    🥶 =>> Vision Backbone `{self.vision_backbone.identifier}`", ctx_level=1)
             overwatch.info(f"[TRAINABLE] 🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> Projector `{self.arch_specifier}`", ctx_level=1)
-
-        elif stage in {"full-finetune", "vla-full-train"}:
-            self.vision_backbone.dtype = torch.float32
-            self.vision_backbone.requires_grad_(True)
-            self.llm_backbone.requires_grad_(True)
-            self.projector.requires_grad_(True)
-
-            # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["vision_backbone", "projector", "llm_backbone"]
-
-            # Update Trackers
-            self.vision_backbone_requires_grad = True
-
-            # Explicitly Log Frozen / Unfrozen Components
-            overwatch.info(f"[TRAINABLE] 🔥 =>> Vision Backbone `{self.vision_backbone.identifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> Projector `{self.arch_specifier}`", ctx_level=1)
-
-        elif stage in {"last-layer-finetune", "vla-last-layer-train"}:
-            self.vision_backbone.requires_grad_(False)
-            self.projector.requires_grad_(False)
-            self.llm_backbone.requires_grad_(False)
-
-            # Unfreeze final LLM layer
-            for module in self.llm_backbone.last_layer_finetune_modules:
-                module.requires_grad_(True)
-
-            # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["llm_backbone"]
-
-            # Update Trackers
-            self.vision_backbone_requires_grad = False
-
-            # Explicitly Log Frozen / Unfrozen Components
-            # fmt: off
-            overwatch.info(f"[Frozen]                    🥶   =>> Vision Backbone `{self.vision_backbone.identifier}`", ctx_level=1)  # noqa: E501
-            overwatch.info(f"[Frozen, except last layer] 🥶🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)  # noqa: E501
-            overwatch.info(f"[Frozen]                    🥶   =>> Projector `{self.arch_specifier}`", ctx_level=1)
-            # fmt: on
-
-        elif stage in {"vla-sandwich-train"}:
-            self.vision_backbone.dtype = torch.float32
-            self.vision_backbone.requires_grad_(True)
-            self.projector.requires_grad_(True)
-            self.llm_backbone.requires_grad_(False)
-
-            # Unfreeze final LLM layer
-            for module in self.llm_backbone.last_layer_finetune_modules:
-                module.requires_grad_(True)
-
-            # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["vision_backbone", "projector", "llm_backbone"]
-
-            # Update Trackers
-            self.vision_backbone_requires_grad = True
-
-            # Explicitly Log Frozen / Unfrozen Components
-            # fmt: off
-            overwatch.info(f"[TRAINABLE]                 🔥   =>> Vision Backbone `{self.vision_backbone.identifier}`", ctx_level=1)  # noqa: E501
-            overwatch.info(f"[Frozen, except last layer] 🥶🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)  # noqa: E501
-            overwatch.info(f"[TRAINABLE]                 🔥   =>> Projector `{self.arch_specifier}`", ctx_level=1)
-            # fmt: on
-
+            overwatch.info(f"[Frozen]    🥶 =>> Projector `{self.arch_specifier}`", ctx_level=1)
+            overwatch.info(f"[TRAINABLE] 🔥 =>> Action Head `{self.action_head.identifier}`", ctx_level=1)
+            overwatch.info(f"[TRAINABLE] 🔥 =>> Skill Selector `{self.skill_selector.identifier}`", ctx_level=1)
         else:
-            raise ValueError(f"Stage `{stage}` is not supported for LLaVa! Try < align | finetune >")
+            raise NotImplementedError(f"Stage {stage} is not supported!")
 
         overwatch.debug("##################################################")
         overwatch.debug("#####      Trainable Network Parameters:     #####")

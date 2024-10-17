@@ -38,6 +38,8 @@ class OpenVLAActionHead(ActionHead):
             action_head_id=action_head_id,
         )
 
+        self.norm_stats = norm_stats
+
         self.tokenizer, self.n_bins, self.min_action, self.max_action = tokenizer, bins, min_action, max_action
 
         # Create Uniform Bins + Compute Bin Centers
