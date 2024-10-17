@@ -8,27 +8,31 @@ Similar implementation as `prismatic.models.vlms.prismatic.PrismaticVLM`.
 from __future__ import annotations
 
 import json
-import os
 from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Type, Union
 
 import torch
-from huggingface_hub import HfFileSystem, hf_hub_download
+from huggingface_hub import hf_hub_download
 from PIL import Image
 from torch.distributed.fsdp.wrap import _module_wrap_policy, _or_policy
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from prismatic.models.backbones.llm import LLMBackbone
-from prismatic.models.backbones.llm.prompting import PromptBuilder
-from prismatic.models.backbones.vision import VisionBackbone
-from prismatic.models.materialize import get_llm_backbone_and_tokenizer, get_vision_backbone_and_transform
-from prismatic.models.registry import GLOBAL_REGISTRY, MODEL_REGISTRY
-from prismatic.overwatch import initialize_overwatch
-from prismatic.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector
-from skillvla.components import DiffusionPolicy, SkillPredictor
-from skillvla.components.action_head import ActionHead
+from prismatic.conf.models import ModelConfig
+from skillvla.components.action_head.base_action_head import ActionHead
+from skillvla.components.llm.base_llm import LLMBackbone
+from skillvla.components.llm.prompting.base_prompter import PromptBuilder
+from skillvla.components.materialize import (
+    get_action_head,
+    get_llm_backbone_and_tokenizer,
+    get_skill_selector,
+    get_vision_backbone_and_transform,
+)
+from skillvla.components.skill_selector.vq_skill_selector import SkillSelector
+from skillvla.components.vision.base_vision import VisionBackbone
 from skillvla.models.base_vla import VLA
+from skillvla.util import initialize_overwatch
+from skillvla.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -50,7 +54,7 @@ class SkillVLA(VLA):
         vision_backbone: VisionBackbone,
         llm_backbone: LLMBackbone,
         action_head: ActionHead,
-        skill_predictor: SkillPredictor,
+        skill_selector: SkillSelector,
         enable_mixed_precision_training: bool = True,
         arch_specifier: str = "gelu-mlp",
         **kwargs,
@@ -64,8 +68,8 @@ class SkillVLA(VLA):
             enable_mixed_precision_training=enable_mixed_precision_training,
         )
 
-        # Set Skill Predictor
-        self.skill_predictor = skill_predictor  # 7541.915, 465.729
+        # Set Skill Selector
+        self.skill_selector = skill_selector
 
         # Set Weight Initialization Seed for Projector Consistency
         torch.manual_seed(vision_backbone.embed_dim)
@@ -85,7 +89,7 @@ class SkillVLA(VLA):
         self.vision_backbone_requires_grad = False
 
         # Set Module Keys =>> used in Checkpoint Saving / Model Loading
-        self.all_module_keys = ["vision_backbone", "llm_backbone", "projector"]
+        self.all_module_keys = ["vision_backbone", "llm_backbone", "projector", "action_head", "skill_selector"]
         self.trainable_module_keys = []
 
         # === Generation Utilities ===
@@ -102,28 +106,96 @@ class SkillVLA(VLA):
         hf_token: Optional[str] = None,
         cache_dir: Optional[Union[str, Path]] = None,
         load_for_training: bool = False,
+        pretrained_checkpoint: Optional[Path] = None,
     ) -> SkillVLA:
-        """Load SkillVLA model from `model_id_or_path`. Similar to `prismatic.models.load.load()`."""
+        """
+        If `pretrained_checkpoint` is provided, we load a pretrained **OpenVLA** checkpoint;
+        Otherwise, we load a pretrained **Prismatic** checkpoint from HF Hub.
+        """
 
-        if os.path.isdir(model_id_or_path):
-            overwatch.info(f"Loading from local path `{(run_dir := Path(model_id_or_path))}`")
+        if pretrained_checkpoint is not None:
+            # Load from Checkpoint (Custom --> should load both *projector* and *llm* weights)
+            overwatch.info(f"Loading from local checkpoint path `{(checkpoint_pt := Path(pretrained_checkpoint))}`")
+            # [Validate] Checkpoint Path should look like `.../<RUN_ID>/checkpoints/<CHECKPOINT_PATH>.pt`
+            assert (checkpoint_pt.suffix == ".pt") and (
+                checkpoint_pt.parent.name == "checkpoints"
+            ), "Invalid checkpoint!"
+            run_dir = checkpoint_pt.parents[1]
 
-            # Get paths for `config.json` and pretrained checkpoint
-            config_json, checkpoint_pt = run_dir / "config.json", run_dir / "checkpoints" / "latest-checkpoint.pt"
+            # Get paths for `config.json`, `dataset_statistics.json` and pretrained checkpoint
+            config_json, dataset_statistics_json = run_dir / "config.json", run_dir / "dataset_statistics.json"
             assert config_json.exists(), f"Missing `config.json` for `{run_dir = }`"
-            assert checkpoint_pt.exists(), f"Missing checkpoint for `{run_dir = }`"
-        else:
-            if model_id_or_path not in GLOBAL_REGISTRY:
-                raise ValueError(f"Couldn't find `{model_id_or_path = }; check `prismatic.available_model_names()`")
+            assert dataset_statistics_json.exists(), f"Missing `dataset_statistics.json` for `{run_dir = }`"
 
-            overwatch.info(f"Downloading `{(model_id := GLOBAL_REGISTRY[model_id_or_path]['model_id'])} from HF Hub")
-            with overwatch.local_zero_first():
-                config_json = hf_hub_download(
-                    repo_id=HF_HUB_REPO, filename=f"{model_id}/config.json", cache_dir=cache_dir
-                )
-                checkpoint_pt = hf_hub_download(
-                    repo_id=HF_HUB_REPO, filename=f"{model_id}/checkpoints/latest-checkpoint.pt", cache_dir=cache_dir
-                )
+            # Load VLA Config (and corresponding base VLM `ModelConfig`) from `config.json`
+            with open(config_json, "r") as f:
+                vla_cfg = json.load(f)["vla"]
+                model_cfg = ModelConfig.get_choice_class(vla_cfg["base_vlm"])()
+
+            # Load Dataset Statistics for Action Denormalization
+            with open(dataset_statistics_json, "r") as f:
+                norm_stats = json.load(f)
+
+            # = Load Individual Components necessary for Instantiating a VLA (via base VLM components) =
+            #   =>> Print Minimal Config
+            overwatch.info(
+                f"Found Config =>> Loading & Freezing [bold blue]{model_cfg.model_id}[/] with:\n"
+                f"             Vision Backbone =>> [bold]{model_cfg.vision_backbone_id}[/]\n"
+                f"             LLM Backbone    =>> [bold]{model_cfg.llm_backbone_id}[/]\n"
+                f"             Arch Specifier  =>> [bold]{model_cfg.arch_specifier}[/]\n"
+                f"             Checkpoint Path =>> [underline]`{checkpoint_pt}`[/]"
+            )
+
+            # Load Vision Backbone
+            overwatch.info(f"Loading Vision Backbone [bold]{model_cfg.vision_backbone_id}[/]")
+            vision_backbone, image_transform = get_vision_backbone_and_transform(
+                model_cfg.vision_backbone_id,
+                model_cfg.image_resize_strategy,
+            )
+
+            # Load LLM Backbone --> note `inference_mode = True` by default when calling `load()`
+            overwatch.info(f"Loading Pretrained LLM [bold]{model_cfg.llm_backbone_id}[/] via HF Transformers")
+            llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
+                model_cfg.llm_backbone_id,
+                llm_max_length=model_cfg.llm_max_length,
+                hf_token=hf_token,
+                inference_mode=not load_for_training,
+            )
+
+            # Load Action Head
+            action_head = get_action_head(
+                action_head_id="openvla",
+                tokenizer=tokenizer,  # TODO: Move action head param to config
+                norm_stats=norm_stats,
+            )  # tokenizer is needed for OpenVLAActionHead
+            overwatch.info(f"Loaded action head: {type(action_head)}")
+
+            # Load Skill Selector
+            skill_selector = get_skill_selector(skill_selector_id="vq")  # TODO: Move skill selector param to config
+            overwatch.info(f"Loaded skill selector: {type(skill_selector)}")
+
+            # Load VLM using `from_pretrained` (clobbers HF syntax... eventually should reconcile)
+            overwatch.info(f"Loading VLA [bold blue]{model_cfg.model_id}[/] from Checkpoint")
+            vla = SkillVLA.from_pretrained(
+                checkpoint_pt,
+                model_cfg.model_id,
+                vision_backbone,
+                llm_backbone,
+                action_head=action_head,
+                skill_selector=skill_selector,
+                arch_specifier=model_cfg.arch_specifier,
+                freeze_weights=not load_for_training,
+            )
+
+            return vla
+
+        # Load from HF Hub
+        overwatch.info(f"Downloading `{(model_id := model_id_or_path)} from HF Hub")
+        with overwatch.local_zero_first():
+            config_json = hf_hub_download(repo_id=HF_HUB_REPO, filename=f"{model_id}/config.json", cache_dir=cache_dir)
+            checkpoint_pt = hf_hub_download(
+                repo_id=HF_HUB_REPO, filename=f"{model_id}/checkpoints/latest-checkpoint.pt", cache_dir=cache_dir
+            )
         # Load Model Config from `config.json`
         with open(config_json, "r") as f:
             model_cfg = json.load(f)["model"]
@@ -144,6 +216,8 @@ class SkillVLA(VLA):
             model_cfg["vision_backbone_id"],
             model_cfg["image_resize_strategy"],
         )
+        overwatch.info(f"Loaded vision backbone: {type(vision_backbone)}")
+        overwatch.info(f"Loaded image transform: {type(image_transform)}")
 
         # Load LLM Backbone --> note `inference_mode = True` by default when calling `load()`
         overwatch.info(f"Loading Pretrained LLM [bold]{model_cfg['llm_backbone_id']}[/] via HF Transformers")
@@ -153,12 +227,19 @@ class SkillVLA(VLA):
             hf_token=hf_token,
             inference_mode=not load_for_training,
         )
+        overwatch.info(f"Loaded LLM backbone: {type(llm_backbone)}")
+        overwatch.info(f"Loaded tokenizer: {type(tokenizer)}")
 
-        # Load Action Decoder  TODO: Implement Action Decoder Loading
-        action_head = DiffusionPolicy()  # HACK: For now, just instantiate a dummy ActionHead
+        # Load Action Head
+        action_head = get_action_head(
+            action_head_id="openvla",
+            tokenizer=tokenizer,  # TODO: Move action head param to config
+        )  # tokenizer is needed for OpenVLAActionHead
+        overwatch.info(f"Loaded action head: {type(action_head)}")
 
-        # Load Skill Predictor  TODO: Implement Skill Predictor Loading
-        skill_predictor = SkillPredictor()  # HACK: For now, just instantiate a dummy SkillPredictor
+        # Load Skill Selector
+        skill_selector = get_skill_selector(skill_selector_id="vq")  # TODO: Move skill selector param to config
+        overwatch.info(f"Loaded skill selector: {type(skill_selector)}")
 
         # Instantiate SkillVLA, same as `PrismaticVLM.from_pretrained()` method.
         overwatch.info(f"Loading VLM [bold blue]{model_cfg['model_id']}[/] from Checkpoint")
@@ -168,7 +249,7 @@ class SkillVLA(VLA):
             vision_backbone,
             llm_backbone,
             action_head,
-            skill_predictor,
+            skill_selector,
             arch_specifier=model_cfg["arch_specifier"],
             freeze_weights=not load_for_training,
         )
@@ -183,7 +264,7 @@ class SkillVLA(VLA):
         vision_backbone: VisionBackbone,
         llm_backbone: LLMBackbone,
         action_head: ActionHead,
-        skill_predictor: SkillPredictor,
+        skill_selector: SkillSelector,
         enable_mixed_precision_training: bool = True,
         arch_specifier: str = "gelu-mlp",
         freeze_weights: bool = True,
@@ -195,14 +276,17 @@ class SkillVLA(VLA):
             vision_backbone,
             llm_backbone,
             action_head,
-            skill_predictor,
+            skill_selector,
             enable_mixed_precision_training=enable_mixed_precision_training,
             arch_specifier=arch_specifier,
             **kwargs,
         )
 
         # Load from Checkpoint (Custom --> should load both *projector* and *llm* weights)
+        # NOTE: We only have pretrained weights (Prismatic) for vision_backbone, llm_backbone, and projector,
+        #      so we need to train the action_head (if applicable) and skill_selector from scratch.
         model_state_dict = torch.load(pretrained_checkpoint, map_location="cpu")["model"]
+        overwatch.info(f"Keys in Pretrained Checkpoint: {model_state_dict.keys()}")
         assert (
             "projector" in model_state_dict and "llm_backbone" in model_state_dict
         ), "PrismaticVLM `from_pretrained` expects checkpoint with keys for `projector` AND `llm_backbone`!"

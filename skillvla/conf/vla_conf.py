@@ -1,114 +1,59 @@
 """
 skillvla/conf/vla_conf.py
 
-Based on `prismatic/conf/vla.py` with modifications for SkillVLA.
+Dataclass Config class for SkillVLA Training Configuration. Default to Bridge Mixture.
+Adjust `vla_id`, `base_vlm`, `data_mix` to use another VLA Policy, VLM, or Data Mixture.
 """
 
 from dataclasses import dataclass
-from enum import Enum, unique
-from pathlib import Path
-from typing import Optional, Union
-
-from draccus import ChoiceRegistry
+from typing import Optional
 
 
 @dataclass
-class VLAConfig(ChoiceRegistry):
-    # fmt: off
-    vla_id: str                                     # Unique VLA Policy ID that fully specifies a configuration variant
-    base_vlm: Union[str, Path]                      # Base VLM as ID/Path to Run Directory (e.g., `prism-dinosiglip+7b`)
-    freeze_vision_backbone: bool                    # Freeze Vision Backbone Parameters (akin to pretraining)
-    freeze_llm_backbone: bool                       # Freeze LLM Backbone parameters
-    unfreeze_last_llm_layer: bool                   # Unfreeze final layer of LLM (only takes effect if LLM is frozen)
+class VLAConfig:
+    """VLA Configuration Dataclass for SkillVLA Training. Default to Bridge Mixture."""
+
+    vla_id: str = (
+        "prism-dinosiglip-224px+mx-skillvla-bridge"  # Unique VLA Policy ID that fully specifies a configuration variant
+    )
+    base_vlm: str = "prism-dinosiglip-224px+7b"  # Base VLM as ID/Path to Run Directory (e.g., `prism-dinosiglip+7b`)
+    freeze_vision_backbone: bool = (
+        True  # Freeze Vision Backbone Parameters (akin to pretraining) TODO: Curr freeze vision backbone
+    )
+    freeze_llm_backbone: bool = True  # Freeze LLM Backbone parameters TODO: Curr freeze vision backbone
+    unfreeze_last_llm_layer: bool = (
+        True  # Unfreeze final layer of LLM (only takes effect if LLM is frozen) TODO: Curr freeze vision backbone
+    )
 
     # Data Mixture Parameters
-    data_mix: str                                   # Open-X Embodiment Dataset =>> Unique Mixture ID (e.g., `bridge`)
-    shuffle_buffer_size: int                        # Size of Shuffle Buffer (100K for Bridge, 1M for OXE)
+    data_mix: str = "bridge"  # Open-X Embodiment Dataset =>> Unique Mixture ID (e.g., `bridge`)
+    shuffle_buffer_size: int = 256_000  # Size of Shuffle Buffer (100K for Bridge, 1M for OXE)
 
     # Optimization Parameters
-    epochs: int                                     # Epochs to Run (in case `max_steps` is not specified)
-    max_steps: Optional[int]                        # [Optional] Max Gradient Steps to Run (overrides `epochs`)
+    epochs: int = 1000  # Epochs to Run (in case `max_steps` is not specified)
+    max_steps: Optional[int] = None  # [Optional] Max Gradient Steps to Run (overrides `epochs`)
 
-    expected_world_size: int                        # Expected # of GPUs =>> allows us to gate training on hardware
-    global_batch_size: int                          # Global Batch Size (divided across processes / world size)
-    per_device_batch_size: int                      # Per-Device Batch Size (per-process / individual GPU)
-                                                    #   =>> # of accumulation steps is auto-computed
+    expected_world_size: int = (
+        1  # Expected # of GPUs =>> allows us to gate training on hardware TODO: Currently for single GPU Training
+    )
+    global_batch_size: int = (
+        1  # Global Batch Size (divided across processes / world size) TODO: Currently for single GPU Training
+    )
+    per_device_batch_size: int = (
+        1  # Per-Device Batch Size (per-process / individual GPU) TODO: Currently for single GPU Training
+    )
 
-    learning_rate: float                            # Peak Learning Rate (`lr_scheduler_type` sets warmup/decay)
-    weight_decay: float                             # Weight Decay for AdamW Optimizer
-    max_grad_norm: float                            # Max Grad Norm (for global gradient clipping)
-    lr_scheduler_type: str                          # LR Scheduler (usually: "constant" | "linear-warmup+cosine-decay")
-    warmup_ratio: float                             # Fraction of Steps to Warmup (for warmup LR schedulers)
+    learning_rate: float = 2e-5  # Peak Learning Rate (`lr_scheduler_type` sets warmup/decay)
+    weight_decay: float = 0.0  # Weight Decay for AdamW Optimizer
+    max_grad_norm: float = 1.0  # Max Grad Norm (for global gradient clipping)
+    lr_scheduler_type: str = "constant"  # LR Scheduler (usually: "constant" | "linear-warmup+cosine-decay")
+    warmup_ratio: float = 0.0  # Fraction of Steps to Warmup (for warmup LR schedulers)
 
-    train_strategy: str                             # Train Strategy (default "fsdp-full-shard")
+    train_strategy: str = "fsdp-full-shard"  # Train Strategy (default "fsdp-full-shard")
 
     # Enable Gradient/Activation Checkpointing (for the LLM Backbone)
-    enable_gradient_checkpointing: bool = True      # Enable Gradient/Activation Checkpointing during Training
+    enable_gradient_checkpointing: bool = True  # Enable Gradient/Activation Checkpointing during Training
 
     # Mixed Precision Training via Torch Native AMP (`autocast`)
-    enable_mixed_precision_training: bool = True    # Enable Traditional BF16 Mixed Precision
-    reduce_in_full_precision: bool = True           # Accumulate/Reduce All-Gather Gradients in FP32 Full Precision
-
-    # fmt: on
-
-
-# === OpenVLA SkillVLA Training Configurations ===
-@dataclass
-class BaseExp_DinoSigLIP_224px_SkillVLA(VLAConfig):
-    # Shared Configuration Parameters
-    vla_id: str = ""
-    base_vlm: Union[str, Path] = "prism-dinosiglip-224px+7b"
-
-    freeze_vision_backbone: bool = True  # TODO: Curr freeze vision backbone
-    freeze_llm_backbone: bool = True  # TODO: Curr freeze llm backbone
-    unfreeze_last_llm_layer: bool = True  # TODO: Curr unfreeze last llm layer
-
-    # Data Mixture Parameters
-    data_mix: str = ""
-    shuffle_buffer_size: int = 256_000
-
-    # Optimization Parameters
-    epochs: int = 1000
-    max_steps: Optional[int] = None
-
-    expected_world_size: int = 1  # TODO: Currently for single GPU Training
-    global_batch_size: int = 1  # TODO: Currently for single GPU Training
-    per_device_batch_size: int = 1  # TODO: Currently for single GPU Training
-
-    learning_rate: float = 2e-5
-    weight_decay: float = 0.0
-    max_grad_norm: float = 1.0
-    lr_scheduler_type: str = "constant"
-    warmup_ratio: float = 0.0
-
-    train_strategy: str = "fsdp-full-shard"
-
-
-# Subclass for "Droid" configuration
-@dataclass
-class Exp_DinoSigLIP_224px_SkillVLA_Droid(BaseExp_DinoSigLIP_224px_SkillVLA):
-    vla_id: str = "prism-dinosiglip-224px+mx-skillvla-droid"
-    data_mix: str = "droid"
-
-
-# Subclass for "Bridge" configuration
-@dataclass
-class Exp_DinoSigLIP_224px_SkillVLA_Bridge(BaseExp_DinoSigLIP_224px_SkillVLA):
-    vla_id: str = "prism-dinosiglip-224px+mx-skillvla-bridge"
-    data_mix: str = "bridge"
-
-
-@unique
-class VLARegistry(Enum):
-    # SkillVLA Droid
-    DINO_SIGLIP_224PX_SKILLVLA_DROID = Exp_DinoSigLIP_224px_SkillVLA_Droid
-    DINO_SIGLIP_224PX_SKILLVLA_BRIDGE = Exp_DinoSigLIP_224px_SkillVLA_Bridge
-
-    @property
-    def vla_id(self) -> str:
-        return self.value.vla_id
-
-
-# Register VLAs in Choice Registry
-for vla_variant in VLARegistry:
-    VLAConfig.register_subclass(vla_variant.vla_id, vla_variant.value)
+    enable_mixed_precision_training: bool = True  # Enable Traditional BF16 Mixed Precision
+    reduce_in_full_precision: bool = True  # Accumulate/Reduce All-Gather Gradients in FP32 Full Precision

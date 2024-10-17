@@ -9,10 +9,7 @@ class ActionHead(nn.Module, ABC):
 
     def __init__(self, action_head_id: str) -> None:
         super().__init__()
-        self.action_head_id = action_head_id
+        self.identifier = action_head_id
 
     @abstractmethod
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        """Predict Action"""
-        print(f"Calling ActionHead forward method with input: {input}")
-        pass
+    def forward(self, x: torch.Tensor) -> torch.Tensor: ...

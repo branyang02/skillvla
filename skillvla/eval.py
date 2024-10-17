@@ -1,18 +1,8 @@
 """
-skillvla/train.py
+eval.py
 
-Training script for Vision-Language-Action (VLA) Policies, built on top of pretrained VLMs, trained using mixtures of
-the Open-X Embodiment dataset. Performs training in native PyTorch, using Fully-Sharded Data Parallel (FSDP) to run
-distributed across GPUs (and nodes). By default, assumes that CUDA toolkit is >= 11.0 (to support BF16 mixed precision).
-
-Notes & Prerequisites:
-    - If you want to set a custom location for all HF / TIMM artifacts --> `export HF_HOME="<PATH>"` *before* running!
-        => For example (add to end of .bashrc): `export HF_HOME="/mnt/fsx/skaramcheti/cache"`
-    - If you want to suppress random Tensorflow logs --> `export TF_CPP_MIN_LOG_LEVEL=3`
-
-Run with:
-    - [Single Node One-GPU (Debug)] : torchrun --standalone --nnodes 1 --nproc-per-node 1 vla-scripts/train.py
-    - [Single Node Multi-GPU (= $K)]: torchrun --standalone --nnodes 1 --nproc-per-node $K vla-scripts/train.py
+This file contains the evaluation functions for the model.
+TODO: This script is currently just the first part of the train script. Need to modify.
 """
 
 import os
@@ -38,7 +28,7 @@ overwatch = initialize_overwatch(__name__)
 
 
 @dataclass
-class TrainConfig:
+class EvalConfig:
     # VLA Configuration
     vla: VLAConfig  # VLA Configuration
 
@@ -48,9 +38,6 @@ class TrainConfig:
 
     # Resume Run Parameters
     pretrained_checkpoint: Optional[str] = None  # Absolute Path to Pretrained OpenVLA Checkpoint
-    is_resume: bool = True  # Whether we are continuing a prior training run
-    resume_step: Optional[int] = None  # Global Step to Resume (should match checkpoint)
-    resume_epoch: Optional[int] = None  # Epoch to Resume (should match checkpoint)
 
     # Run Arguments
     run_id: Optional[str] = None  # Run ID for logging, Weights & Biases
@@ -112,8 +99,8 @@ class TrainConfig:
                 yaml_file.write(yaml_cfg_data)
 
 
-def train(cfg: TrainConfig) -> None:
-    overwatch.info("OpenVLA Training :: Warming Up")
+def eval(cfg: EvalConfig) -> None:  # noqa: A001
+    overwatch.info("OpenVLA Evaluating :: Warming Up")
 
     # Note => Under `torchrun` initializing `overwatch` will automatically set up `torch.distributed`
     torch.cuda.set_device(device_id := overwatch.local_rank())
@@ -127,58 +114,17 @@ def train(cfg: TrainConfig) -> None:
     # Load VLA checkpoint (if resuming from training) or Base VLM otherwise (from `cfg.vla.base_vlm` ID or Path)
     #   =>> Note :: Verifies that all parameters are loaded in FP32 on load!
     overwatch.info(f"Loading Base VLM `{cfg.vla.base_vlm}` from ID/Path")
-    if cfg.pretrained_checkpoint is not None:
-        # [Validate] Pretrained Checkpoint `step` and `epoch` should match `resume_step` and `resume_epoch`
-        #   =>> Note :: We make developers pass in `resume_*` arguments as an extra sanity check!
-        if cfg.is_resume:
-            assert int(re.search("step-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_step
-            assert int(re.search("epoch-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_epoch
 
     vla = SkillVLA.load(
         cfg.vla.base_vlm, hf_token=hf_token, load_for_training=True, pretrained_checkpoint=cfg.pretrained_checkpoint
     )
 
-    # [Validate] Model should be in Full Precision!
-    for param in vla.parameters():
-        assert param.dtype == torch.float32, f"Loaded VLA parameter not in full precision: {param}"
-
-    # Determine training "stage" based on frozen vs unfrozen parameters --> supports different fine-tuning schemes!
-    if not cfg.vla.freeze_vision_backbone and not cfg.vla.freeze_llm_backbone:
-        stage = "vla-full-train"  # Full fine-tuning
-    elif cfg.vla.freeze_vision_backbone and not cfg.vla.freeze_llm_backbone:
-        stage = "vla-train"  # Frozen vision encoder
-    elif not cfg.vla.freeze_vision_backbone and cfg.vla.freeze_llm_backbone:
-        assert cfg.vla.unfreeze_last_llm_layer, "You should unfreeze at least the last layer of your LLM!"
-        stage = "vla-sandwich-train"  # Fine-tuning vision encoder, projector, and LLM last layer
-    elif cfg.vla.freeze_vision_backbone and cfg.vla.freeze_llm_backbone:
-        assert cfg.vla.unfreeze_last_llm_layer, "Need to unfreeze at least last LLM layer to train!"
-        stage = "vla-last-layer-train"  # Fine-tuning LLM last layer only
-    else:
-        raise ValueError(
-            "Weight freezing configuration not supported. VLA config has the following parameters: "
-            f"freeze_vision_backbone: {cfg.vla.freeze_vision_backbone}"
-            f"freeze_llm_backbone: {cfg.vla.freeze_llm_backbone}"
-            f"unfreeze_last_llm_layer: {cfg.vla.unfreeze_last_llm_layer}"
-        )
-
-    # [Explicit] Call to `freeze_backbones` here for clarity =>> will log exactly what is/is not frozen
-    overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{cfg.vla.vla_id}` => Stage: `{stage}`")
-    vla.freeze_backbones(stage)
-
-    # Print number of total/trainable model parameters
-    num_params = sum(p.numel() for p in vla.parameters())
-    num_trainable_params = sum(p.numel() for p in vla.parameters() if p.requires_grad)
-    overwatch.info(
-        f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable"
-    )
+    print(vla)
 
     # TODO: Works with both below:
-    # >>> (skillvla-env) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py
-    # >>> (skillvla-env) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py --pretrained_checkpoint base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss\=0.2200.pt --no_is_resume
-
-    # TODO: Reference train_old and finish this script
+    # >>> (skillvla-env) bash-4.4$torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/eval.py --pretrained_checkpoint base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss\=0.2200.pt
 
 
 if __name__ == "__main__":
-    cfg = tyro.cli(TrainConfig)
-    train(cfg)
+    cfg = tyro.cli(EvalConfig)
+    eval(cfg)

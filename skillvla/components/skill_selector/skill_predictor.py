@@ -7,7 +7,7 @@ Create SkillPredictor class to predict the skill from codebook
 import torch
 import torch.nn as nn
 
-from skillvla.components.skill_predictor.vector_quantize import VectorQuantize
+from skillvla.components.skill_selector.vq.vector_quantize import VectorQuantize
 
 
 class SkillPredictor(nn.Module):
