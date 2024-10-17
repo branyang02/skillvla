@@ -159,7 +159,7 @@ class SkillVLA(VLA):
 
             # Instantiate LLM Backbone --> note `inference_mode = True` by default when calling `load()`
             overwatch.info(
-                f"[bold yellow]2. Instantiating Pretrained LLM [bold blue]{model_cfg.llm_backbone_id}[/] [bold yellow]via HF Transformers"
+                f"[bold yellow]2. Instantiating Pretrained LLM [bold blue]{model_cfg.llm_backbone_id}[/] [bold yellow]via HF Transformers"  # noqa: E501
             )
             llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
                 model_cfg.llm_backbone_id,
@@ -223,7 +223,7 @@ class SkillVLA(VLA):
         overwatch.info("[bold purple]###### Instantiating VLA Components ######")
 
         # Instantiate Vision Backbone
-        overwatch.info(f"[bold yellow]1. Instantiating Vision Backbone [bold blue]{model_cfg.vision_backbone_id}[/]")
+        overwatch.info(f"[bold yellow]1. Instantiating Vision Backbone [bold blue]{model_cfg['vision_backbone_id']}[/]")
         vision_backbone, image_transform = get_vision_backbone_and_transform(
             model_cfg["vision_backbone_id"],
             model_cfg["image_resize_strategy"],
@@ -231,7 +231,7 @@ class SkillVLA(VLA):
 
         # Instantiate LLM Backbone --> note `inference_mode = True` by default when calling `load()`
         overwatch.info(
-            f"[bold yellow]2. Instantiating Pretrained LLM [bold blue]{model_cfg.llm_backbone_id}[/] [bold yellow]via HF Transformers"
+            f"[bold yellow]2. Instantiating Pretrained LLM [bold blue]{model_cfg['llm_backbone_id']}[/] [bold yellow]via HF Transformers"  # noqa: E501
         )
         llm_backbone, tokenizer = get_llm_backbone_and_tokenizer(
             model_cfg["llm_backbone_id"],
