@@ -14,9 +14,9 @@ pip install -e .
 pip install packaging ninja
 ninja --version; echo $?  # Verify Ninja --> should return exit code "0"
 pip install "flash-attn==2.5.5" --no-build-isolation
+```
 
 3. Install SimplerEnv for evaluation
-
 
 ```
 git submodule update --init --recursive
