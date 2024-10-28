@@ -4,7 +4,7 @@ skillvla/models/base_vla.py
 Base class for VLA model, wrapper around `prismatic.models.vlms.base_vlm.VLM`.
 """
 
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import torch
 import torch.nn as nn

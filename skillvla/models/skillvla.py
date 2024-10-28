@@ -43,6 +43,31 @@ class SkillVLA(VLA):
         ckpt_path: Union[str, Path],
         hf_token: Optional[str] = None,
         load_for_training: bool = False,
-    ):
-        vla = load_vla(ckpt_path, hf_token=hf_token, load_for_training=True)
-        return vla
+    ) -> SkillVLA:
+        """
+        Load SkillVLA model from OpenVLA checkpoint.
+
+        Args:
+            ckpt_path (Union[str, Path]): Path to OpenVLA checkpoint.
+            hf_token (Optional[str], optional): Hugging Face token for downloading model from Hugging Face Hub. Defaults to None.
+            load_for_training (bool, optional): Load model for training. Defaults to False.
+
+        Returns:
+            SkillVLA: SkillVLA model loaded from OpenVLA checkpoint.
+        """
+        overwatch.info(f"Loading SkillVLA model from OpenVLA checkpoint: {ckpt_path}")
+
+        # 1. Load base VLA from pretrained OpenVLA checkpoint
+        openvla = load_vla(ckpt_path, hf_token=hf_token, load_for_training=load_for_training)
+
+        # 2. Convert OpenVLA to SkillVLA Setup
+
+        # TODO: convert OpenVLA to SkillVLA setup
+        return SkillVLA(
+            model_id=openvla.model_id,
+            obs_encoder=openvla.obs_encoder,
+            lang_encoder=openvla.lang_encoder,
+            llm_backbone=openvla.llm_backbone,
+            action_head=openvla.action_head,
+            skill_selector=SkillSelector(),
+        )

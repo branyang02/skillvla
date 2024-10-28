@@ -133,7 +133,6 @@ def train(cfg: TrainConfig) -> None:
         # TODO: Load weights from the base Prismatic VLM
         raise NotImplementedError("Loading weights from the base Prismatic VLM is not yet implemented!")
 
-    print(type(vla))
     exit()
 
     # TODO:
