@@ -24,7 +24,7 @@ from transformers import AutoConfig, AutoTokenizer, PreTrainedModel, PreTrainedT
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from prismatic.models.backbones.llm.prompting import PromptBuilder
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 
 # Suppress HF Deprecation Warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -149,9 +149,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
 
         # Load (Fast) Tokenizer
         overwatch.info(f"Loading [bold]{llm_family}[/] (Fast) Tokenizer via the AutoTokenizer API", ctx_level=1)
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            hf_hub_path, model_max_length=self.llm_max_length, token=hf_token, padding_side="right"
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(hf_hub_path, model_max_length=self.llm_max_length, token=hf_token, padding_side="right")
 
         # Validation =>> Our VLM logic currently operates under the assumption that the tokenization of a new input
         #                starts with a <BOS> token unless `add_special_tokens = False`; for these models, we empirically
@@ -181,9 +179,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
 
     def get_fsdp_wrapping_policy(self) -> Callable:
         """Return a `transformer_auto_wrap_policy` where we wrap each instance of `self.transformer_layer_cls`"""
-        transformer_block_policy = partial(
-            transformer_auto_wrap_policy, transformer_layer_cls={self.transformer_layer_cls}
-        )
+        transformer_block_policy = partial(transformer_auto_wrap_policy, transformer_layer_cls={self.transformer_layer_cls})
 
         return transformer_block_policy
 

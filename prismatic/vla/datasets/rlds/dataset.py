@@ -15,7 +15,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 from prismatic.vla.datasets.rlds import obs_transforms, traj_transforms
 from prismatic.vla.datasets.rlds.utils import goal_relabeling, task_augmentation
 from prismatic.vla.datasets.rlds.utils.data_utils import (
@@ -134,9 +134,7 @@ def make_dataset_from_rlds(
             traj = standardize_fn(traj)
 
         if not all(k in traj for k in REQUIRED_KEYS):
-            raise ValueError(
-                f"Trajectory is missing keys: {REQUIRED_KEYS - set(traj.keys())}. " "Did you write a `standardize_fn`?"
-            )
+            raise ValueError(f"Trajectory is missing keys: {REQUIRED_KEYS - set(traj.keys())}. " "Did you write a `standardize_fn`?")
 
         # extracts images, depth images and proprio from the "observation" dict
         traj_len = tf.shape(traj["action"])[0]
@@ -174,9 +172,7 @@ def make_dataset_from_rlds(
         task = {}
         if language_key is not None:
             if traj[language_key].dtype != tf.string:
-                raise ValueError(
-                    f"Language key {language_key} has dtype {traj[language_key].dtype}, " "but it must be tf.string."
-                )
+                raise ValueError(f"Language key {language_key} has dtype {traj[language_key].dtype}, " "but it must be tf.string.")
             task["language_instruction"] = traj.pop(language_key)
 
         traj = {
@@ -189,8 +185,7 @@ def make_dataset_from_rlds(
         if absolute_action_mask is not None:
             if len(absolute_action_mask) != traj["action"].shape[-1]:
                 raise ValueError(
-                    f"Length of absolute_action_mask ({len(absolute_action_mask)}) "
-                    f"does not match action dimension ({traj['action'].shape[-1]})."
+                    f"Length of absolute_action_mask ({len(absolute_action_mask)}) " f"does not match action dimension ({traj['action'].shape[-1]})."
                 )
             traj["absolute_action_mask"] = tf.tile(
                 tf.convert_to_tensor(absolute_action_mask, dtype=tf.bool)[None],
@@ -206,9 +201,9 @@ def make_dataset_from_rlds(
         with tf.io.gfile.GFile(dataset_statistics, "r") as f:
             dataset_statistics = json.load(f)
     elif dataset_statistics is None:
-        full_dataset = dl.DLataset.from_rlds(
-            builder, split="all", shuffle=False, num_parallel_reads=num_parallel_reads
-        ).traj_map(restructure, num_parallel_calls)
+        full_dataset = dl.DLataset.from_rlds(builder, split="all", shuffle=False, num_parallel_reads=num_parallel_reads).traj_map(
+            restructure, num_parallel_calls
+        )
         # tries to load from cache, otherwise computes on the fly
         dataset_statistics = get_dataset_statistics(
             full_dataset,
@@ -540,9 +535,7 @@ def make_interleaved_dataset(
         reads_per_dataset,
     ):
         dataset_frame_transform_kwargs = (
-            dataset_kwargs.pop("dataset_frame_transform_kwargs")
-            if "dataset_frame_transform_kwargs" in dataset_kwargs
-            else {}
+            dataset_kwargs.pop("dataset_frame_transform_kwargs") if "dataset_frame_transform_kwargs" in dataset_kwargs else {}
         )
         dataset, _ = make_dataset_from_rlds(
             **dataset_kwargs,

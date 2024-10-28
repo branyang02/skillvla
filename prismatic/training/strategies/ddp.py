@@ -14,7 +14,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import AdamW
 from transformers.optimization import get_constant_schedule, get_cosine_schedule_with_warmup
 
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -36,8 +36,7 @@ class DDPStrategy(TrainingStrategy):
 
         # Splinter State Dictionary by Top-Level Submodules (or subset, if `only_trainable`)
         model_state_dicts = {
-            mkey: getattr(self.vlm.module, mkey).state_dict()
-            for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
+            mkey: getattr(self.vlm.module, mkey).state_dict() for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
         }
         optimizer_state_dict = self.optimizer.state_dict()
 

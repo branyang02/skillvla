@@ -24,7 +24,7 @@ from prismatic.models.backbones.llm import LLMBackbone
 from prismatic.models.backbones.llm.prompting import PromptBuilder
 from prismatic.models.backbones.vision import VisionBackbone
 from prismatic.models.vlms.base_vlm import VLM
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 from prismatic.util.nn_utils import FusedMLPProjector, LinearProjector, MLPProjector
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -246,9 +246,7 @@ class PrismaticVLM(VLM):
 
         # If we're running a `no-align` architecture, we're good!
         if self.arch_specifier.startswith("no-align"):
-            overwatch.info(
-                f"PrismaticVLM with `{self.arch_specifier = }` does not require pretrained weights!", ctx_level=1
-            )
+            overwatch.info(f"PrismaticVLM with `{self.arch_specifier = }` does not require pretrained weights!", ctx_level=1)
             return
 
         # Otherwise, handle stage-specific logic!
@@ -269,11 +267,7 @@ class PrismaticVLM(VLM):
 
         # [Contract] If no `pretrained_checkpoint`, assume `align` lives in the run directory; string substitution!
         model, scale, _, seed = run_dir.name.split("+")
-        align_dirs = [
-            d
-            for d in run_dir.parent.iterdir()
-            if (d.name.startswith(f"{model}+{scale}") and d.name.endswith(f"+stage-align+{seed}"))
-        ]
+        align_dirs = [d for d in run_dir.parent.iterdir() if (d.name.startswith(f"{model}+{scale}") and d.name.endswith(f"+stage-align+{seed}"))]
         assert len(align_dirs) == 1, "Multiple or No Valid Pretrained Directories Exist -- Double Check `runs`!"
         if (pretrained_checkpoint := (align_dirs[0] / "checkpoints" / "latest-checkpoint.pt")).exists():
             overwatch.info(f"Loading from Discovered Checkpoint `{pretrained_checkpoint}`", ctx_level=1)
@@ -415,9 +409,7 @@ class PrismaticVLM(VLM):
                 dtype=labels.dtype,
                 device=labels.device,
             )
-            multimodal_labels = torch.cat(
-                [labels[multimodal_indices, :1], projected_patch_labels, labels[multimodal_indices, 1:]], dim=1
-            )
+            multimodal_labels = torch.cat([labels[multimodal_indices, :1], projected_patch_labels, labels[multimodal_indices, 1:]], dim=1)
 
         # === Add Unimodal Handling ===
 
@@ -529,9 +521,7 @@ class PrismaticVLM(VLM):
         tokenizer = self.llm_backbone.tokenizer
 
         # Prepare Inputs
-        batch_input_ids = [
-            tokenizer(text, truncation=True, return_tensors="pt").input_ids.to(self.device) for text in texts
-        ]
+        batch_input_ids = [tokenizer(text, truncation=True, return_tensors="pt").input_ids.to(self.device) for text in texts]
         if isinstance(pixel_values, torch.Tensor):
             pixel_values = pixel_values[None, ...].to(self.device)
         elif isinstance(pixel_values, dict):

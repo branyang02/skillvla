@@ -9,7 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 from prismatic.vla.datasets.rlds.oxe.configs import OXE_DATASET_CONFIGS, ActionEncoding
 from prismatic.vla.datasets.rlds.oxe.transforms import OXE_STANDARDIZATION_TRANSFORMS
 from prismatic.vla.datasets.rlds.utils.data_utils import NormalizationType
@@ -47,12 +47,8 @@ def make_oxe_dataset_kwargs(
         raise ValueError(f"Cannot load `{dataset_name}`; missing camera views `{missing_keys}`")
 
     # Filter
-    dataset_kwargs["image_obs_keys"] = {
-        k: v for k, v in dataset_kwargs["image_obs_keys"].items() if k in load_camera_views
-    }
-    dataset_kwargs["depth_obs_keys"] = {
-        k: v for k, v in dataset_kwargs["depth_obs_keys"].items() if k in load_camera_views
-    }
+    dataset_kwargs["image_obs_keys"] = {k: v for k, v in dataset_kwargs["image_obs_keys"].items() if k in load_camera_views}
+    dataset_kwargs["depth_obs_keys"] = {k: v for k, v in dataset_kwargs["depth_obs_keys"].items() if k in load_camera_views}
 
     # Eliminate Unnecessary Keys
     dataset_kwargs.pop("state_encoding")

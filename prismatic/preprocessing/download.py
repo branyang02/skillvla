@@ -15,7 +15,7 @@ from PIL import Image
 from rich.progress import BarColumn, DownloadColumn, MofNCompleteColumn, Progress, TextColumn, TransferSpeedColumn
 from tqdm import tqdm
 
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -145,9 +145,7 @@ def download_with_progress(url: str, download_dir: Path, chunk_size_bytes: int =
         TransferSpeedColumn(),
         transient=True,
     ) as dl_progress:
-        dl_tid = dl_progress.add_task(
-            "Downloading", fname=dest_path.name, total=int(response.headers.get("content-length", "None"))
-        )
+        dl_tid = dl_progress.add_task("Downloading", fname=dest_path.name, total=int(response.headers.get("content-length", "None")))
         with open(dest_path, "wb") as f:
             for data in response.iter_content(chunk_size=chunk_size_bytes):
                 dl_progress.advance(dl_tid, f.write(data))

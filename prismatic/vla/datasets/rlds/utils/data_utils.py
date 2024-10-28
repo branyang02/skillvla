@@ -15,7 +15,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -94,9 +94,7 @@ def normalize_action_and_proprio(traj: Dict, metadata: Dict, normalization_type:
 
             # Note (Moo Jin): Map unused action dimensions (i.e., dimensions where min == max) to all 0s.
             zeros_mask = metadata[key]["min"] == metadata[key]["max"]
-            traj = dl.transforms.selective_tree_map(
-                traj, match=lambda k, _: k == traj_key, map_fn=lambda x: tf.where(zeros_mask, 0.0, x)
-            )
+            traj = dl.transforms.selective_tree_map(traj, match=lambda k, _: k == traj_key, map_fn=lambda x: tf.where(zeros_mask, 0.0, x))
 
         return traj
 
@@ -219,9 +217,7 @@ def get_dataset_statistics(
     dataset = dataset.traj_map(
         lambda traj: {
             "action": traj["action"],
-            "proprio": (
-                traj["observation"]["proprio"] if "proprio" in traj["observation"] else tf.zeros_like(traj["action"])
-            ),
+            "proprio": (traj["observation"]["proprio"] if "proprio" in traj["observation"] else tf.zeros_like(traj["action"])),
         }
     )
 
