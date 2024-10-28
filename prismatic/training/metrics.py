@@ -8,7 +8,7 @@ endpoints (e.g., JSONL local logs, Weights & Biases).
 import time
 from collections import defaultdict, deque
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Union
+from typing import Any, Dict, Optional, Protocol, Tuple, Union
 
 import jsonlines
 import numpy as np
@@ -208,7 +208,7 @@ class Metrics:
 class VLAMetrics:
     def __init__(
         self,
-        active_trackers: List[str],
+        active_trackers: Tuple[str, ...],
         run_id: str,
         run_dir: Path,
         hparams: Dict[str, Any],

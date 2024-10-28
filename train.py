@@ -16,7 +16,6 @@ import torch
 import tyro
 
 from skillvla.conf.vla_conf import VLAConfig
-from skillvla.datasets.materialize import get_vla_dataset_and_collator
 from skillvla.models.skillvla import SkillVLA
 from skillvla.util import initialize_overwatch
 from skillvla.util.torch_utils import set_global_seed
@@ -139,41 +138,6 @@ def train(cfg: TrainConfig) -> None:
     # TODO:
     # 1. Replace VLM base class with VLA base class
     # 2. Generation Mixin in VLA
-
-    # [Validate] Model should be in Full Precision!
-    for param in vla.parameters():
-        assert param.dtype == torch.float32, f"Loaded VLA parameter not in full precision: {param}"
-
-    # [Explicit] Call to `freeze_backbones` here for clarity =>> will log exactly what is/is not frozen
-    overwatch.info("[bold purple]###### Configuring Training Parameters ######")
-    stage = "skill-learning"  # TODO: Allow more stages for freezing
-    overwatch.info(f"Invoking `VLM.freeze_backbones()` for `{cfg.vla.vla_id}` => Stage: `{stage}`")
-    vla.freeze_backbones(stage)
-
-    # Print number of total/trainable model parameters
-    num_params = sum(p.numel() for p in vla.parameters())
-    num_trainable_params = sum(p.numel() for p in vla.parameters() if p.requires_grad)
-    overwatch.info(f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable")
-    for module_key in vla.all_module_keys:
-        num_module_params = sum(p.numel() for p in vla.get_module(module_key).parameters())
-        num_trainable_module_params = sum(p.numel() for p in vla.get_module(module_key).parameters() if p.requires_grad)
-        overwatch.info(
-            f"# Params in `{module_key}` (in millions): {num_module_params / 10**6:.3f} Total, {num_trainable_module_params / 10**6:.3f} Trainable"
-        )
-
-    # TODO: Implement optimizer and scheduler
-    # Get VLA Dataset & Collator
-    vla_dataset, collator = get_vla_dataset_and_collator(
-        cfg.data_root_dir,
-        cfg.vla.data_mix,
-        image_transform=vla.vision_backbone.get_image_transform(),
-        tokenizer=vla.llm_backbone.get_tokenizer(),
-        action_head=vla.action_head,
-        prompt_builder_fn=vla.llm_backbone.prompt_builder_fn,
-        default_image_resolution=vla.vision_backbone.default_image_resolution,
-        shuffle_buffer_size=cfg.vla.shuffle_buffer_size,
-        image_aug=cfg.image_aug,
-    )
 
 
 if __name__ == "__main__":
