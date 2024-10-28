@@ -14,19 +14,19 @@ class VLAConfig:
     """VLA Configuration Dataclass for SkillVLA Training. Default to Bridge Mixture."""
 
     vla_id: str = (
-        "prism-dinosiglip-224px+mx-skillvla-bridge"  # Unique VLA Policy ID that fully specifies a configuration variant
+        "prism-dinosiglip-224px+mx-skillvla-droid"  # Unique VLA Policy ID that fully specifies a configuration variant
     )
     base_vlm: str = "prism-dinosiglip-224px+7b"  # Base VLM as ID/Path to Run Directory (e.g., `prism-dinosiglip+7b`)
-    freeze_vision_backbone: bool = (
-        True  # Freeze Vision Backbone Parameters (akin to pretraining) TODO: Curr freeze vision backbone
-    )
-    freeze_llm_backbone: bool = True  # Freeze LLM Backbone parameters TODO: Curr freeze vision backbone
-    unfreeze_last_llm_layer: bool = (
-        True  # Unfreeze final layer of LLM (only takes effect if LLM is frozen) TODO: Curr freeze vision backbone
-    )
+    # freeze_vision_backbone: bool = (
+    #     True  # Freeze Vision Backbone Parameters (akin to pretraining) TODO: Curr freeze vision backbone
+    # )
+    # freeze_llm_backbone: bool = True  # Freeze LLM Backbone parameters TODO: Curr freeze vision backbone
+    # unfreeze_last_llm_layer: bool = (
+    #     True  # Unfreeze final layer of LLM (only takes effect if LLM is frozen) TODO: Curr freeze vision backbone
+    # )
 
     # Data Mixture Parameters
-    data_mix: str = "bridge"  # Open-X Embodiment Dataset =>> Unique Mixture ID (e.g., `bridge`)
+    data_mix: str = "droid"  # Open-X Embodiment Dataset =>> Unique Mixture ID (e.g., `bridge`)
     shuffle_buffer_size: int = 256_000  # Size of Shuffle Buffer (100K for Bridge, 1M for OXE)
 
     # Optimization Parameters
