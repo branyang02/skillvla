@@ -69,12 +69,12 @@ where = ["skillvla"]
 "prismatic" = ["py.typed"]
 
 [tool.black]
-line-length = 121
+line-length = 150
 target-version = ["py38", "py39", "py310"]
 preview = true
 
 [tool.ruff]
-line-length = 121
+line-length = 150
 target-version = "py38"
 
 [tool.ruff.lint]
