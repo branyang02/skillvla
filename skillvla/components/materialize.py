@@ -20,14 +20,10 @@ from skillvla.components.vision.base_vision import ImageTransform, VisionBackbon
 from skillvla.components.vision.dinosiglip_vit import DinoSigLIPViTBackbone
 
 
-def get_vision_backbone_and_transform(
-    vision_backbone_id: str, image_resize_strategy: str
-) -> Tuple[VisionBackbone, ImageTransform]:
+def get_vision_backbone_and_transform(vision_backbone_id: str, image_resize_strategy: str) -> Tuple[VisionBackbone, ImageTransform]:
     """Instantiate a Vision Backbone, returning both the nn.Module wrapper class and default Image Transform."""
     # default vision_backbone_id = dinosiglip-vit-so-224px
-    vision_backbone: VisionBackbone = DinoSigLIPViTBackbone(
-        vision_backbone_id, image_resize_strategy, default_image_size=224
-    )
+    vision_backbone: VisionBackbone = DinoSigLIPViTBackbone(vision_backbone_id, image_resize_strategy, default_image_size=224)
     image_transform = vision_backbone.get_image_transform()
     return vision_backbone, image_transform
 

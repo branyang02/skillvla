@@ -13,10 +13,8 @@ from typing import Optional
 class VLAConfig:
     """VLA Configuration Dataclass for SkillVLA Training. Default to Bridge Mixture."""
 
-    vla_id: str = (
-        "prism-dinosiglip-224px+mx-skillvla-droid"  # Unique VLA Policy ID that fully specifies a configuration variant
-    )
-    base_vlm: str = "prism-dinosiglip-224px+7b"  # Base VLM as ID/Path to Run Directory (e.g., `prism-dinosiglip+7b`)
+    vla_id: str = "prism-dinosiglip-224px+mx-skillvla-droid"  # Unique VLA Policy ID that fully specifies a configuration variant
+    base_vlm: str = "prism-dinosiglip-224px+7b"  # Base VLM from Prismatic VLM (default to `prism-dinosiglip-224px+7b` that is used by OpenVLA)
     # freeze_vision_backbone: bool = (
     #     True  # Freeze Vision Backbone Parameters (akin to pretraining) TODO: Curr freeze vision backbone
     # )
@@ -33,15 +31,9 @@ class VLAConfig:
     epochs: int = 1000  # Epochs to Run (in case `max_steps` is not specified)
     max_steps: Optional[int] = None  # [Optional] Max Gradient Steps to Run (overrides `epochs`)
 
-    expected_world_size: int = (
-        1  # Expected # of GPUs =>> allows us to gate training on hardware TODO: Currently for single GPU Training
-    )
-    global_batch_size: int = (
-        1  # Global Batch Size (divided across processes / world size) TODO: Currently for single GPU Training
-    )
-    per_device_batch_size: int = (
-        1  # Per-Device Batch Size (per-process / individual GPU) TODO: Currently for single GPU Training
-    )
+    expected_world_size: int = 1  # Expected # of GPUs =>> allows us to gate training on hardware TODO: Currently for single GPU Training
+    global_batch_size: int = 1  # Global Batch Size (divided across processes / world size) TODO: Currently for single GPU Training
+    per_device_batch_size: int = 1  # Per-Device Batch Size (per-process / individual GPU) TODO: Currently for single GPU Training
 
     learning_rate: float = 2e-5  # Peak Learning Rate (`lr_scheduler_type` sets warmup/decay)
     weight_decay: float = 0.0  # Weight Decay for AdamW Optimizer

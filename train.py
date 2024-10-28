@@ -1,13 +1,9 @@
 """
-skillvla/train.py
+train.py
 
-We support 2 methods of training:
+Train from pretrained OpenVLA:
 
-1. Train from pretrained Prismatic VLM
->>> (skillvla-env) bash-4.4$ torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py
-
-2. Train from pretrained OpenVLA VLA (trained on top of Prismatic VLM)
->>> (skillvla-env) bash-4.4$ torchrun --standalone --nnodes 1 --nproc-per-node 1 skillvla/train.py --pretrained_checkpoint base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss\=0.2200.pt --no_is_resume
+>>> (skillvla) bash-4.4$ torchrun --standalone --nnodes 1 --nproc-per-node 1 train.py
 """
 
 import os
@@ -43,8 +39,10 @@ class TrainConfig:
     run_root_dir: str = "runs"  # Path to directory to store logs & checkpoints
 
     # Resume Run Parameters
-    pretrained_checkpoint: Optional[str] = None  # Absolute Path to Pretrained OpenVLA Checkpoint
-    is_resume: bool = True  # Whether we are continuing a prior training run
+    pretrained_checkpoint: Optional[str] = (  # Absolute Path to Pretrained OpenVLA Checkpoint
+        "base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss=0.2200.pt"
+    )
+    is_resume: bool = False  # Whether we are continuing a prior training run
     resume_step: Optional[int] = None  # Global Step to Resume (should match checkpoint)
     resume_epoch: Optional[int] = None  # Epoch to Resume (should match checkpoint)
 
@@ -86,9 +84,7 @@ class TrainConfig:
         # 2. Setup `run_root_dir`
         vla_id = self.vla.vla_id
         self.run_id = (
-            f"{vla_id}+n{self.vla.expected_world_size // 8}+b{self.per_device_batch_size}+x{self.seed}"
-            if self.run_id is None
-            else self.run_id
+            f"{vla_id}+n{self.vla.expected_world_size // 8}+b{self.per_device_batch_size}+x{self.seed}" if self.run_id is None else self.run_id
         )
         if self.run_id_note is not None:
             self.run_id += f"--{self.run_id_note}"
@@ -124,15 +120,25 @@ def train(cfg: TrainConfig) -> None:
     #   =>> Note :: Verifies that all parameters are loaded in FP32 on load!
     overwatch.info(f"Loading Base VLM `{cfg.vla.base_vlm}` from ID/Path")
     if cfg.pretrained_checkpoint is not None:
+        # Load OpenVLA Weights
+
         # [Validate] Pretrained Checkpoint `step` and `epoch` should match `resume_step` and `resume_epoch`
         #   =>> Note :: We make developers pass in `resume_*` arguments as an extra sanity check!
         if cfg.is_resume:
             assert int(re.search("step-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_step
             assert int(re.search("epoch-(.+?)-", cfg.pretrained_checkpoint.name).group(1)) == cfg.resume_epoch
 
-    vla = SkillVLA.load(
-        cfg.vla.base_vlm, hf_token=hf_token, load_for_training=True, pretrained_checkpoint=cfg.pretrained_checkpoint
-    )
+        vla = SkillVLA.load_from_openvla(cfg.pretrained_checkpoint, hf_token=hf_token, load_for_training=True)
+
+    else:
+        # TODO: Load weights from the base Prismatic VLM
+        raise NotImplementedError("Loading weights from the base Prismatic VLM is not yet implemented!")
+
+    exit()
+
+    # TODO:
+    # 1. Replace VLM base class with VLA base class
+    # 2. Generation Mixin in VLA
 
     # [Validate] Model should be in Full Precision!
     for param in vla.parameters():
@@ -147,9 +153,7 @@ def train(cfg: TrainConfig) -> None:
     # Print number of total/trainable model parameters
     num_params = sum(p.numel() for p in vla.parameters())
     num_trainable_params = sum(p.numel() for p in vla.parameters() if p.requires_grad)
-    overwatch.info(
-        f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable"
-    )
+    overwatch.info(f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable")
     for module_key in vla.all_module_keys:
         num_module_params = sum(p.numel() for p in vla.get_module(module_key).parameters())
         num_trainable_module_params = sum(p.numel() for p in vla.get_module(module_key).parameters() if p.requires_grad)
