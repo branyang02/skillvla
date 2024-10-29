@@ -1,17 +1,22 @@
 """
 skillvla/models/skillvla.py
 
-PyTorch Module defining SkillVLA model as a wrapper around `prismatic.models.vlms.base_vlm.VLM`.
-Similar implementation as `prismatic.models.vlms.prismatic.PrismaticVLM`.
+PyTorch Module defining SkillVLA model class.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 from prismatic.models.load import load_vla
 from skillvla.components.action_head.base_action_head import ActionHead
+from skillvla.components.factory import (
+    create_action_head_from_openvla,
+    create_language_encoder_from_openvla,
+    create_llm_backbone_from_openvla,
+    create_observation_encoder_from_openvla,
+)
 from skillvla.components.lang_encoder.base_lang_encoder import LanguageEncoder
 from skillvla.components.llm_backbone.base_llm_backbone import LLMBackbone
 from skillvla.components.obs_encoder.base_obs_encoder import ObservationEncoder
@@ -40,7 +45,7 @@ class SkillVLA(VLA):
 
     @staticmethod
     def load_from_openvla(
-        ckpt_path: Union[str, Path],
+        ckpt_path: Path,
         hf_token: Optional[str] = None,
         load_for_training: bool = False,
     ) -> SkillVLA:
@@ -48,7 +53,7 @@ class SkillVLA(VLA):
         Load SkillVLA model from OpenVLA checkpoint.
 
         Args:
-            ckpt_path (Union[str, Path]): Path to OpenVLA checkpoint.
+            ckpt_path (Path): Path to OpenVLA checkpoint.
             hf_token (Optional[str], optional): Hugging Face token for downloading model from Hugging Face Hub. Defaults to None.
             load_for_training (bool, optional): Load model for training. Defaults to False.
 
@@ -60,14 +65,26 @@ class SkillVLA(VLA):
         # 1. Load base VLA from pretrained OpenVLA checkpoint
         openvla = load_vla(ckpt_path, hf_token=hf_token, load_for_training=load_for_training)
 
-        # 2. Convert OpenVLA to SkillVLA Setup
+        # Weights that are loaded from OpenVLA checkpoint
+        # print(type(openvla.vision_backbone))  # prismatic.models.backbones.vision.dinosiglip_vit.DinoSigLIPViTBackbone
+        # print(type(openvla.llm_backbone))  # prismatic.models.backbones.llm.llama2.LLaMa2LLMBackbone
+        # print(type(openvla.projector))  # prismatic.util.nn_utils.FusedMLPProjector
+
+        # 2. Convert OpenVLA components to SkillVLA components
+        obs_encoder = create_observation_encoder_from_openvla(openvla)
+        lang_encoder = create_language_encoder_from_openvla(openvla)
+        llm_backbone = create_llm_backbone_from_openvla(openvla)
+        action_head = create_action_head_from_openvla(openvla)
+
+        # 3. Create SkillSelector
+        skill_selector = SkillSelector()  # TODO: Implement SkillSelector
 
         # TODO: convert OpenVLA to SkillVLA setup
         return SkillVLA(
-            model_id=openvla.model_id,
-            obs_encoder=openvla.obs_encoder,
-            lang_encoder=openvla.lang_encoder,
-            llm_backbone=openvla.llm_backbone,
-            action_head=openvla.action_head,
-            skill_selector=SkillSelector(),
+            model_id=openvla.model_id + "_skillvla",
+            obs_encoder=obs_encoder,
+            lang_encoder=lang_encoder,
+            llm_backbone=llm_backbone,
+            action_head=action_head,
+            skill_selector=skill_selector,
         )

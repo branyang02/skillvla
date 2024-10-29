@@ -10,12 +10,13 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 import tyro
 
 from skillvla.conf.vla_conf import VLAConfig
+from skillvla.datasets.factory import get_vla_dataset_and_collator
 from skillvla.models.skillvla import SkillVLA
 from skillvla.util import initialize_overwatch
 from skillvla.util.torch_utils import set_global_seed
@@ -34,11 +35,11 @@ class TrainConfig:
     vla: VLAConfig  # VLA Configuration
 
     # Directory Paths
-    data_root_dir: str = "/scratch/jqm9ba/datasets"  # Path to Open-X dataset directory
-    run_root_dir: str = "runs"  # Path to directory to store logs & checkpoints
+    data_root_dir: Union[str, Path] = "/scratch/jqm9ba/datasets"  # Path to Open-X dataset directory
+    run_root_dir: Union[str, Path] = "runs"  # Path to directory to store logs & checkpoints
 
     # Resume Run Parameters
-    pretrained_checkpoint: Optional[str] = (  # Absolute Path to Pretrained OpenVLA Checkpoint
+    pretrained_checkpoint: Optional[Union[str, Path]] = (  # Absolute Path to Pretrained OpenVLA Checkpoint
         "base_model_ckpts/models--openvla--openvla-7b-prismatic/snapshots/5e44aaf23f992e150f26b257500144225ab6643b/checkpoints/step-295000-epoch-40-loss=0.2200.pt"
     )
     is_resume: bool = False  # Whether we are continuing a prior training run
@@ -53,7 +54,7 @@ class TrainConfig:
     seed: int = 7  # Random seed (for reproducibility)
 
     # HF Hub Credentials (for any gated models)
-    hf_token: str = ".hf_token"  # Environment variable or Path to HF Token
+    hf_token: Union[str, Path] = ".hf_token"  # Environment variable or Path to HF Token
 
     # Tracking Parameters
     trackers: List[str] = field(default_factory=lambda: ["jsonl"])  # Trackers to initialize (if W&B, add config!)
@@ -103,6 +104,13 @@ class TrainConfig:
             with open(os.path.join(run_dir, "config.yaml"), "w") as yaml_file:
                 yaml_file.write(yaml_cfg_data)
 
+        # Instantiate all Path objects
+        #  =>> Note :: This is done to ensure that all paths are `Path` objects for ease of use
+        self.data_root_dir = Path(self.data_root_dir)
+        self.run_root_dir = Path(self.run_root_dir)
+        self.pretrained_checkpoint = Path(self.pretrained_checkpoint) if self.pretrained_checkpoint is not None else None
+        self.hf_token = Path(self.hf_token)
+
 
 def train(cfg: TrainConfig) -> None:
     overwatch.info("[bold purple]###### OpenVLA Training :: Warming Up ######")
@@ -112,12 +120,11 @@ def train(cfg: TrainConfig) -> None:
     torch.cuda.empty_cache()
 
     # Start =>> Build Directories and Set Randomness
-    hf_token = Path(cfg.hf_token).read_text().strip()
+    hf_token = cfg.hf_token.read_text().strip()
     worker_init_fn = set_global_seed(cfg.seed, get_worker_init_fn=True)
 
     # Load VLA checkpoint (if resuming from training) or Base VLM otherwise (from `cfg.vla.base_vlm` ID or Path)
     #   =>> Note :: Verifies that all parameters are loaded in FP32 on load!
-    overwatch.info(f"Loading Base VLM `{cfg.vla.base_vlm}` from ID/Path")
     if cfg.pretrained_checkpoint is not None:
         # Load OpenVLA Weights
 
@@ -133,11 +140,32 @@ def train(cfg: TrainConfig) -> None:
         # TODO: Load weights from the base Prismatic VLM
         raise NotImplementedError("Loading weights from the base Prismatic VLM is not yet implemented!")
 
-    exit()
+    # Log VLA Configuration
+    for param_tensor in vla.state_dict():
+        print(f"{param_tensor}: {vla.state_dict()[param_tensor].shape}")
 
-    # TODO:
-    # 1. Replace VLM base class with VLA base class
-    # 2. Generation Mixin in VLA
+    # [Validate] Model should be in Full Precision!
+    for param in vla.parameters():
+        assert param.dtype == torch.float32, f"Loaded VLM parameter not in full precision: {param}"
+
+    # TODO: Freeze some components
+
+    # Print number of total/trainable model parameters
+    num_params = sum(p.numel() for p in vla.parameters())
+    num_trainable_params = sum(p.numel() for p in vla.parameters() if p.requires_grad)
+    overwatch.info(f"# Parameters (in millions): {num_params / 10**6:.3f} Total, {num_trainable_params / 10**6:.3f} Trainable")
+
+    # Get VLA Dataset
+    vla_dataset = get_vla_dataset_and_collator(
+        vla=vla,
+        data_root_dir=cfg.data_root_dir,
+        data_mix=cfg.vla.data_mix,
+        shuffle_buffer_size=cfg.vla.shuffle_buffer_size,
+        train=True,
+        image_aug=cfg.image_aug,
+    )
+
+    print(vla_dataset)
 
 
 if __name__ == "__main__":

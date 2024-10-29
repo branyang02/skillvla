@@ -78,9 +78,7 @@ class SplitModalitySampler(Sampler):
         )
 
         # Handle Special Case --> no "unimodal" inputs
-        unimodal_split = [
-            (idx, length) for idx, (is_multimodal, length) in enumerate(self.modality_lengths) if not is_multimodal
-        ]
+        unimodal_split = [(idx, length) for idx, (is_multimodal, length) in enumerate(self.modality_lengths) if not is_multimodal]
         if len(unimodal_split) == 0:
             unimodal_indices, unimodal_lengths = [], []
         else:
@@ -147,12 +145,8 @@ class SplitModalitySampler(Sampler):
         #   => `rank_1_indices`: [ [5 (18), 0 (20)] =>> [11 (17), 7 (19)] =>> [2 (21),  1 (90)] ]
         #
         # Much better! As `g_bsz` and `dataset` grow, we're more often than not getting *decent* groupings!
-        mm_length_bucketed_idxs = [
-            self.reindex_batch(batch, multimodal_lengths, self.num_replicas) for batch in mm_sorted_batch_idxs
-        ]
-        uni_length_bucketed_idxs = [
-            self.reindex_batch(batch, unimodal_lengths, self.num_replicas) for batch in uni_sorted_batch_idxs
-        ]
+        mm_length_bucketed_idxs = [self.reindex_batch(batch, multimodal_lengths, self.num_replicas) for batch in mm_sorted_batch_idxs]
+        uni_length_bucketed_idxs = [self.reindex_batch(batch, unimodal_lengths, self.num_replicas) for batch in uni_sorted_batch_idxs]
 
         # Note :: Because of the initial `randperm` --> we're indexing both sets from 0 (we're clobbering the range)
         #   => Flatten indices --> index into original `{modality}_indices` then re-batch!
