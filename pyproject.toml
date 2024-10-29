@@ -63,7 +63,7 @@ sagemaker = ["boto3", "sagemaker"]
 
 
 [tool.setuptools.packages.find]
-where = ["skillvla"]
+where = [".", "skillvla"]
 
 [tool.setuptools.package-data]
 "prismatic" = ["py.typed"]

@@ -16,11 +16,12 @@ from skillvla.components.factory import (
     create_language_encoder_from_openvla,
     create_llm_backbone_from_openvla,
     create_observation_encoder_from_openvla,
+    create_skill_selector,
 )
 from skillvla.components.lang_encoder.base_lang_encoder import LanguageEncoder
 from skillvla.components.llm_backbone.base_llm_backbone import LLMBackbone
 from skillvla.components.obs_encoder.base_obs_encoder import ObservationEncoder
-from skillvla.components.skill_selector.skill_selector import SkillSelector
+from skillvla.components.skill_selector.base_skill_selector import SkillSelector
 from skillvla.models.base_vla import VLA
 from skillvla.util import initialize_overwatch
 
@@ -77,7 +78,7 @@ class SkillVLA(VLA):
         action_head = create_action_head_from_openvla(openvla)
 
         # 3. Create SkillSelector
-        skill_selector = SkillSelector()  # TODO: Implement SkillSelector
+        skill_selector = create_skill_selector()
 
         # TODO: convert OpenVLA to SkillVLA setup
         return SkillVLA(

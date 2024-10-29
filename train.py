@@ -167,6 +167,8 @@ def train(cfg: TrainConfig) -> None:
 
     print(vla_dataset)
 
+    # TODO: Fix vla_dataset
+
 
 if __name__ == "__main__":
     cfg = tyro.cli(TrainConfig)

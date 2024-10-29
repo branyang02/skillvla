@@ -42,7 +42,8 @@ class RLDSBatchTransform:
         print(action)
         print(img)
         print(lang)
-        exit()
+
+        return dict()
 
 
 class RLDSDataset(IterableDataset):
@@ -125,7 +126,9 @@ class RLDSDataset(IterableDataset):
 
     def __iter__(self) -> Dict[str, Any]:  # type: ignore
         for rlds_batch in self.dataset.as_numpy_iterator():
-            yield self.batch_transform(rlds_batch)
+            # TODO: Uncomment this line to enable batch-level transformations
+            # yield self.batch_transform(rlds_batch)
+            yield rlds_batch
 
     def __len__(self) -> int:
         return self.dataset_length

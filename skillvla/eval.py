@@ -78,9 +78,7 @@ class EvalConfig:
         # 2. Setup `run_root_dir`
         vla_id = self.vla.vla_id
         self.run_id = (
-            f"{vla_id}+n{self.vla.expected_world_size // 8}+b{self.per_device_batch_size}+x{self.seed}"
-            if self.run_id is None
-            else self.run_id
+            f"{vla_id}+n{self.vla.expected_world_size // 8}+b{self.per_device_batch_size}+x{self.seed}" if self.run_id is None else self.run_id
         )
         if self.run_id_note is not None:
             self.run_id += f"--{self.run_id_note}"
@@ -112,9 +110,7 @@ def eval(cfg: EvalConfig) -> None:  # noqa: A001
     hf_token = Path(cfg.hf_token).read_text().strip()
     worker_init_fn = set_global_seed(cfg.seed, get_worker_init_fn=True)
 
-    vla = SkillVLA.load(
-        cfg.vla.base_vlm, hf_token=hf_token, load_for_training=False, pretrained_checkpoint=cfg.pretrained_checkpoint
-    )
+    vla = SkillVLA.load(cfg.vla.base_vlm, hf_token=hf_token, load_for_training=False, pretrained_checkpoint=cfg.pretrained_checkpoint)
 
     # Print number of total model parameters
     overwatch.info("[bold purple]###### Model Parameters ######")

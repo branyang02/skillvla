@@ -4,13 +4,11 @@ skillvla/models/base_vla.py
 Base class for VLA models.
 """
 
-from abc import ABC, abstractmethod
-from typing import List, Optional
+from abc import ABC
 
 import torch
 import torch.nn as nn
 from transformers import GenerationMixin
-from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from skillvla.components.action_head.base_action_head import ActionHead
 from skillvla.components.lang_encoder.base_lang_encoder import LanguageEncoder
