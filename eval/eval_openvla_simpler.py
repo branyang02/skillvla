@@ -1,7 +1,7 @@
 """
 eval/eval_openvla_simpler.py
 
-This script evaluates the OpenVLA model on a specific task using the ManiSkill environment.
+This script evaluates the pretrained OpenVLA model on a specific task using the ManiSkill environment.
 
 Usage:
 >>> python eval/eval_openvla_simpler.py

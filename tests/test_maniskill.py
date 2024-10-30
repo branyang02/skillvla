@@ -1,7 +1,7 @@
 """
 tests/test_maniskill.py
 
-This script tests the functionality of the ManiSkill environment by running a simple simulation.
+This script tests the ManiSkill environment by running a simple episode and saving the frames as a video.
 
 Usage:
 >>> python tests/test_maniskill.py
