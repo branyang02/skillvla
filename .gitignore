@@ -157,3 +157,6 @@ runs/
 
 # Checkpoints
 base_model_ckpts/
+
+# Generated videos
+videos/
