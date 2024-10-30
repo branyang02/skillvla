@@ -4,8 +4,7 @@ skillvla/datasets/factory.py
 This module contains the factory function for creating datasets.
 """
 
-from pathlib import Path
-from typing import Tuple, Type
+from typing import Tuple
 
 from skillvla.components.llm_backbone.prompting.base_prompter import PurePromptBuilder
 from skillvla.datasets.datasets import RLDSBatchTransform, RLDSDataset
@@ -21,6 +20,7 @@ def get_vla_dataset_and_collator(
     train: bool = True,
     image_aug: bool = False,
 ):
+    # Initialze transform to be applied to the dataset
     batch_transform = RLDSBatchTransform(
         vla.obs_encoder,
         vla.lang_encoder,

@@ -167,7 +167,7 @@ def train(cfg: TrainConfig) -> None:
 
     print(vla_dataset)
 
-    # TODO: Fix vla_dataset
+    # TODO: Integrate Maniskill Simulation and Dataset
 
 
 if __name__ == "__main__":
