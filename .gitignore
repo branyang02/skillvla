@@ -154,3 +154,6 @@ wandb/
 
 # Default runs directory
 runs/
+
+# Checkpoints
+base_model_ckpts/

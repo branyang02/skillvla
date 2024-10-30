@@ -8,14 +8,14 @@ endpoints (e.g., JSONL local logs, Weights & Biases).
 import time
 from collections import defaultdict, deque
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Union
+from typing import Any, Dict, Optional, Protocol, Tuple, Union
 
 import jsonlines
 import numpy as np
 import torch
 import wandb
 
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -119,9 +119,7 @@ class Metrics:
             if tracker_type == "jsonl":
                 tracker = JSONLinesTracker(run_id, run_dir, hparams)
             elif tracker_type == "wandb":
-                tracker = WeightsBiasesTracker(
-                    run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group=self.stage
-                )
+                tracker = WeightsBiasesTracker(run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group=self.stage)
             else:
                 raise ValueError(f"Tracker with type `{tracker_type} is not supported!")
 
@@ -150,9 +148,7 @@ class Metrics:
         # Otherwise, embed `loss` in status report!
         return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f} -- Loss :: {loss:.4f}"
 
-    def commit(
-        self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, **kwargs
-    ) -> None:
+    def commit(self, *, global_step: Optional[int] = None, lr: Optional[float] = None, update_step_time: bool = False, **kwargs) -> None:
         """Update all metrics in `self.state` by iterating through special positional arguments & kwargs."""
         if global_step is not None:
             self.global_step = global_step
@@ -208,7 +204,7 @@ class Metrics:
 class VLAMetrics:
     def __init__(
         self,
-        active_trackers: List[str],
+        active_trackers: Tuple[str, ...],
         run_id: str,
         run_dir: Path,
         hparams: Dict[str, Any],
@@ -227,9 +223,7 @@ class VLAMetrics:
             if tracker_type == "jsonl":
                 tracker = JSONLinesTracker(run_id, run_dir, hparams)
             elif tracker_type == "wandb":
-                tracker = WeightsBiasesTracker(
-                    run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group="vla-train"
-                )
+                tracker = WeightsBiasesTracker(run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group="vla-train")
             else:
                 raise ValueError(f"Tracker with type `{tracker_type} is not supported!")
 

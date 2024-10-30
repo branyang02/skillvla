@@ -33,6 +33,8 @@ dependencies = [
     "accelerate>=0.25.0",
     "draccus==0.8.0",
     "einops",
+    "einx>=0.3.0",
+    "tyro>=0.8.12",
     # "flash_attn==2.5.5",      # Here for documentation -- install *AFTER* editable install (follow README)
     "huggingface_hub",
     "json-numpy",
@@ -61,18 +63,18 @@ sagemaker = ["boto3", "sagemaker"]
 
 
 [tool.setuptools.packages.find]
-where = ["skillvla"]
+where = [".", "skillvla"]
 
 [tool.setuptools.package-data]
 "prismatic" = ["py.typed"]
 
 [tool.black]
-line-length = 121
+line-length = 150
 target-version = ["py38", "py39", "py310"]
 preview = true
 
 [tool.ruff]
-line-length = 121
+line-length = 150
 target-version = "py38"
 
 [tool.ruff.lint]

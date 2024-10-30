@@ -13,7 +13,7 @@ from PIL import Image
 from transformers import LlamaTokenizerFast
 
 from prismatic.models.vlms.prismatic import PrismaticVLM
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 from prismatic.vla.action_tokenizer import ActionTokenizer
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -33,9 +33,7 @@ class OpenVLA(PrismaticVLM):
         self.action_tokenizer = action_tokenizer
 
     @torch.inference_mode()
-    def predict_action(
-        self, image: Image, instruction: str, unnorm_key: Optional[str] = None, **kwargs: str
-    ) -> np.ndarray:
+    def predict_action(self, image: Image, instruction: str, unnorm_key: Optional[str] = None, **kwargs: str) -> np.ndarray:
         """
         Core function for VLA inference; maps input image and task instruction to continuous action (de-tokenizes).
 
@@ -59,9 +57,7 @@ class OpenVLA(PrismaticVLM):
             # If the special empty token ('') does not already appear after the colon (':') token in the prompt
             # (after "OUT:" or "ASSISTANT:"), insert it to match the inputs seen at training time
             if not torch.all(input_ids[:, -1] == 29871):
-                input_ids = torch.cat(
-                    (input_ids, torch.unsqueeze(torch.Tensor([29871]).long(), dim=0).to(input_ids.device)), dim=1
-                )
+                input_ids = torch.cat((input_ids, torch.unsqueeze(torch.Tensor([29871]).long(), dim=0).to(input_ids.device)), dim=1)
         else:
             raise ValueError(f"Unsupported `tokenizer` type = {type(tokenizer)}")
 
@@ -112,9 +108,7 @@ class OpenVLA(PrismaticVLM):
             unnorm_key = next(iter(norm_stats.keys()))
 
         # Error Handling
-        assert (
-            unnorm_key in norm_stats
-        ), f"The `unnorm_key` you chose is not in the set of available statistics; choose from: {norm_stats.keys()}"
+        assert unnorm_key in norm_stats, f"The `unnorm_key` you chose is not in the set of available statistics; choose from: {norm_stats.keys()}"
 
         return unnorm_key
 

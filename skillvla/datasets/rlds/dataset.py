@@ -15,10 +15,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
-from skillvla.util import initialize_overwatch
-from prismatic.vla.datasets.rlds import obs_transforms, traj_transforms
-from prismatic.vla.datasets.rlds.utils import goal_relabeling, task_augmentation
-from prismatic.vla.datasets.rlds.utils.data_utils import (
+from skillvla.datasets.rlds import obs_transforms, traj_transforms
+from skillvla.datasets.rlds.utils import goal_relabeling, task_augmentation
+from skillvla.datasets.rlds.utils.data_utils import (
     NormalizationType,
     allocate_threads,
     get_dataset_statistics,
@@ -26,6 +25,7 @@ from prismatic.vla.datasets.rlds.utils.data_utils import (
     pprint_data_mixture,
     tree_map,
 )
+from skillvla.util import initialize_overwatch
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)

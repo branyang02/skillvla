@@ -30,7 +30,7 @@ from torch.optim import AdamW
 from transformers.optimization import get_constant_schedule, get_cosine_schedule_with_warmup
 
 from prismatic.models.vlms import PrismaticVLM
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 from prismatic.training.strategies.base_strategy import TrainingStrategy
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -106,9 +106,7 @@ class FSDPStrategy(TrainingStrategy):
         # Summon Full State Dictionary =>> Reconstitute from Shards
         with FSDP.state_dict_type(self.vlm, self.fsdp_state_dict_type, self.fsdp_save_policy):
             full_vlm_state_dict = self.vlm.state_dict()
-            model_state_dicts = {
-                mkey: OrderedDict() for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
-            }
+            model_state_dicts = {mkey: OrderedDict() for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)}
 
             # Iterate through `full_vlm_state_dict` and split `mkey.{full_dotted_path}` -> `mkey: {full_dotted_path}`
             for key, param in full_vlm_state_dict.items():
@@ -122,9 +120,7 @@ class FSDPStrategy(TrainingStrategy):
                 if train_loss is None:
                     checkpoint_path = checkpoint_dir / f"step-{global_step:06d}-epoch-{epoch:02d}-loss=inf.pt"
                 else:
-                    checkpoint_path = (
-                        checkpoint_dir / f"step-{global_step:06d}-epoch-{epoch:02d}-loss={train_loss:.4f}.pt"
-                    )
+                    checkpoint_path = checkpoint_dir / f"step-{global_step:06d}-epoch-{epoch:02d}-loss={train_loss:.4f}.pt"
 
                 # Save Checkpoint & Copy Latest to `latest-checkpoint.pt`
                 torch.save({"model": model_state_dicts}, checkpoint_path)
@@ -141,9 +137,7 @@ class FSDPStrategy(TrainingStrategy):
             # MixedPrecision `param_dtype` specifies *compute* dtype (for forward/backward only)
             #   => Reference: https://pytorch.org/docs/stable/fsdp.html#torch.distributed.fsdp.MixedPrecision
             reduce_buffer_dtype = torch.bfloat16 if not self.reduce_in_full_precision else torch.float32
-            fsdp_precision_policy = MixedPrecision(
-                param_dtype=torch.bfloat16, reduce_dtype=reduce_buffer_dtype, buffer_dtype=reduce_buffer_dtype
-            )
+            fsdp_precision_policy = MixedPrecision(param_dtype=torch.bfloat16, reduce_dtype=reduce_buffer_dtype, buffer_dtype=reduce_buffer_dtype)
 
             # When running FSDP with a frozen vision backbone --> move to half precision!
             if self.stage not in {"full-finetune", "vla-full-train", "vla-sandwich-train"}:
@@ -152,9 +146,7 @@ class FSDPStrategy(TrainingStrategy):
 
         else:
             # If we're not using mixed precision, everything is in default full precision!
-            fsdp_precision_policy = MixedPrecision(
-                param_dtype=torch.float32, reduce_dtype=torch.float32, buffer_dtype=torch.float32
-            )
+            fsdp_precision_policy = MixedPrecision(param_dtype=torch.float32, reduce_dtype=torch.float32, buffer_dtype=torch.float32)
 
         # <FSDP> => note that FSDP will automatically take care of device placement (similar to `autocast`)
         self.vlm = FSDP(

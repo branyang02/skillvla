@@ -19,7 +19,7 @@ from tqdm import tqdm
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from prismatic.models.vlms import PrismaticVLM
-from prismatic.overwatch import initialize_overwatch
+from skillvla.util import initialize_overwatch
 from prismatic.training.metrics import Metrics, VLAMetrics
 from prismatic.util import check_bloat16_supported
 from prismatic.util.batching_utils import SplitModalitySampler
@@ -79,9 +79,7 @@ class TrainingStrategy(ABC):
         self.optimizer, self.lr_scheduler = None, None
 
         # Lightweight Validation
-        assert (
-            self.global_batch_size % self.per_device_batch_size == 0
-        ), "Per-device batch size must evenly divide global batch size!"
+        assert self.global_batch_size % self.per_device_batch_size == 0, "Per-device batch size must evenly divide global batch size!"
         self.grad_accumulation_steps = self.global_batch_size // self.per_device_batch_size // overwatch.world_size()
         if self.enable_mixed_precision_training:
             assert self.mixed_precision_dtype == torch.bfloat16, "Only BF16 mixed precision training is supported!"
@@ -156,11 +154,7 @@ class TrainingStrategy(ABC):
         # === Train ===
         status = metrics.get_status()
         with tqdm(
-            total=(
-                (self.epochs * (len(dataloader) // self.grad_accumulation_steps))
-                if self.max_steps is None
-                else self.max_steps
-            ),
+            total=((self.epochs * (len(dataloader) // self.grad_accumulation_steps)) if self.max_steps is None else self.max_steps),
             desc=status,
             leave=False,
             disable=not overwatch.is_rank_zero(),
@@ -284,9 +278,7 @@ class TrainingStrategy(ABC):
             for batch in dataloader:
                 # Note that we'll unpack batch (and let AMP/FSDP do its thing) in the VLM.forward() call
                 #   => Basically, if we're using mixed precision (or not), autocast()/FSDP will move to device!
-                with torch.autocast(
-                    "cuda", dtype=self.mixed_precision_dtype, enabled=self.enable_mixed_precision_training
-                ):
+                with torch.autocast("cuda", dtype=self.mixed_precision_dtype, enabled=self.enable_mixed_precision_training):
                     # [Contract] self.vlm.forward() must automatically compute `loss` and return!
                     output: CausalLMOutputWithPast = self.vlm(
                         input_ids=batch["input_ids"],
@@ -320,12 +312,8 @@ class TrainingStrategy(ABC):
                 action_accuracy = correct_preds.sum().float() / mask.sum().float()
 
                 # Compute L1 Loss on Predicted (Continuous) Actions
-                continuous_actions_pred = torch.tensor(
-                    action_tokenizer.decode_token_ids_to_actions(action_preds[mask].cpu().numpy())
-                )
-                continuous_actions_gt = torch.tensor(
-                    action_tokenizer.decode_token_ids_to_actions(action_gt[mask].cpu().numpy())
-                )
+                continuous_actions_pred = torch.tensor(action_tokenizer.decode_token_ids_to_actions(action_preds[mask].cpu().numpy()))
+                continuous_actions_gt = torch.tensor(action_tokenizer.decode_token_ids_to_actions(action_gt[mask].cpu().numpy()))
                 action_l1_loss = torch.nn.functional.l1_loss(continuous_actions_pred, continuous_actions_gt)
 
                 # Commit Metrics
@@ -339,21 +327,13 @@ class TrainingStrategy(ABC):
                             ds_mask = torch.tensor([elem == ds for elem in batch["dataset_names"]])
                             action_accuracy_ds = correct_preds[ds_mask].sum().float() / mask[ds_mask].sum().float()
                             continuous_actions_pred_ds = torch.tensor(
-                                action_tokenizer.decode_token_ids_to_actions(
-                                    action_preds[ds_mask][mask[ds_mask]].cpu().numpy()
-                                )
+                                action_tokenizer.decode_token_ids_to_actions(action_preds[ds_mask][mask[ds_mask]].cpu().numpy())
                             )
                             continuous_actions_gt_ds = torch.tensor(
-                                action_tokenizer.decode_token_ids_to_actions(
-                                    action_gt[ds_mask][mask[ds_mask]].cpu().numpy()
-                                )
+                                action_tokenizer.decode_token_ids_to_actions(action_gt[ds_mask][mask[ds_mask]].cpu().numpy())
                             )
-                            action_l1_loss_ds = torch.nn.functional.l1_loss(
-                                continuous_actions_pred_ds, continuous_actions_gt_ds
-                            )
-                            metrics.commit_for_dataset(
-                                dataset_name=ds.decode(), action_accuracy=action_accuracy_ds, l1_loss=action_l1_loss_ds
-                            )
+                            action_l1_loss_ds = torch.nn.functional.l1_loss(continuous_actions_pred_ds, continuous_actions_gt_ds)
+                            metrics.commit_for_dataset(dataset_name=ds.decode(), action_accuracy=action_accuracy_ds, l1_loss=action_l1_loss_ds)
 
                 # === Gradient Step ===
 
@@ -376,9 +356,7 @@ class TrainingStrategy(ABC):
                 if (terminate := (self.max_steps is not None and metrics.global_step >= self.max_steps)) or (
                     (metrics.global_step % save_interval) == 0
                 ):
-                    self.save_checkpoint(
-                        metrics.run_dir, metrics.global_step, epoch, loss.item(), only_trainable=not save_full_model
-                    )
+                    self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item(), only_trainable=not save_full_model)
                     dist.barrier()
 
                     if terminate:
