@@ -1,5 +1,5 @@
 """
-components/component_factory.py
+components/factory.py
 
 This module contains factory functions for creating VLA components.
 """
