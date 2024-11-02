@@ -17,6 +17,10 @@ from skillvla.components.obs_encoder.base_obs_encoder import ObservationEncoder
 
 
 class VLA(nn.Module, GenerationMixin, ABC):
+    """
+    Base class for VLA models.
+    """
+
     def __init__(
         self, model_id: str, obs_encoder: ObservationEncoder, lang_encoder: LanguageEncoder, llm_backbone: LLMBackbone, action_head: ActionHead
     ):

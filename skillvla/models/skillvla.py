@@ -30,7 +30,9 @@ overwatch = initialize_overwatch(__name__)
 
 
 class SkillVLA(VLA):
-    """SkillVLA Main Class"""
+    """
+    SkillVLA Main Class, extending VLA for skill-based tasks.
+    """
 
     def __init__(
         self,

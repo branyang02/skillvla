@@ -10,4 +10,10 @@ class ObservationEncoder(nn.Module, ABC):
         self.identifier = obs_encoder_id
 
     @abstractmethod
-    def forward(self, obs: torch.Tensor) -> torch.Tensor: ...
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        """
+        Encodes the observation space into tokens for the LLM backbone.
+
+        Args:
+            obs (torch.Tensor): The observation tensor, could be an image or the proprioception.
+        """
